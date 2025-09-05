@@ -10,7 +10,7 @@ namespace HRApi.Models
 
         public string? TenChuyenNganh { get; set; }
 
-        // Navigation property: Một chuyên ngành có thể có nhiều nhân viên
+        // có nhiều nhân viên trong một chuyên ngành
         [JsonIgnore]
         public virtual ICollection<NhanVien>? NhanViens { get; set; }
     }
