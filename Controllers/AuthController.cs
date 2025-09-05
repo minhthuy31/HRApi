@@ -76,7 +76,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Gửi mã xác nhận quên mật khẩu
+    /// Gửi mã xác nhận quên mật khẩu(gửi về email)
     /// </summary>
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req)
