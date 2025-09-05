@@ -1,0 +1,20 @@
+﻿using HRApi.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace HRApi.Data
+{
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+        public DbSet<User> Users { get; set; }
+        public DbSet<NhanVien> NhanViens { get; set; }
+        public DbSet<PhongBan> PhongBans { get; set; }
+        public DbSet<ChucVuNhanVien> ChucVuNhanViens { get; set; }
+        public DbSet<HopDong> HopDongs { get; set; }
+        public DbSet<ChuyenNganh> ChuyenNganhs { get; set; }
+        public DbSet<TrinhDoHocVan> TrinhDoHocVans { get; set; }
+        public DbSet<ChamCong> ChamCongs { get; set; }
+
+    }
+}

@@ -1,0 +1,32 @@
+﻿# Build folders
+bin/
+obj/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio cache
+.vs/
+
+# Rider cache
+.idea/
+
+# Logs
+*.log
+
+# Database / local files
+*.db
+*.sqlite
+
+# Publish output
+/out/
+/publish/
+
+# Backup / temp
+*.bak
+*.tmp
+
