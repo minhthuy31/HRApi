@@ -1,20 +1,22 @@
-﻿// Program.cs
-
+﻿// Thêm các using statement cần thiết
 using HRApi.Data;
 using HRApi.Models;
+using HRApi.Services; // QUAN TRỌNG: Namespace cho các services
+using Login.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models; // Cần cho Swagger
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-var configuration = builder.Configuration; // Lấy configuration để sử dụng
+var configuration = builder.Configuration;
 
 // Thêm dịch vụ Controllers
 builder.Services.AddControllers();
 
 // ======================================================================
-// === BẮT ĐẦU THÊM CẤU HÌNH XÁC THỰC JWT ===
+// === BẮT ĐẦU CẤU HÌNH XÁC THỰC JWT (Giữ nguyên của bạn) ===
 // ======================================================================
 builder.Services.AddAuthentication(options =>
 {
@@ -35,31 +37,68 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]))
     };
 });
-// ======================================================================
-// === KẾT THÚC CẤU HÌNH XÁC THỰC JWT ===
-// ======================================================================
 
+// ======================================================================
+// === KẾT NỐI DATABASE VÀ CÁC DỊCH VỤ ===
+// ======================================================================
 
 // Kết nối SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Cấu hình CORS
+// *** BẮT ĐẦU THÊM MỚI: Đăng ký EmailService và TokenService ***
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+// *** KẾT THÚC THÊM MỚI ***
+
+// Cấu hình CORS (Giữ nguyên của bạn)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
         policy => policy.WithOrigins("http://localhost:3000")
-                        .AllowAnyMethod()
-                        .AllowAnyHeader());
+                          .AllowAnyMethod()
+                          .AllowAnyHeader());
 });
 
-// Swagger
+// ======================================================================
+// === CẤU HÌNH SWAGGER (Nâng cấp) ===
+// ======================================================================
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// Nâng cấp Swagger để hỗ trợ Authorize button
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "HRApi", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Nhập token theo format: Bearer {token}",
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
 
+
+// ======================================================================
+// === XÂY DỰNG ỨNG DỤNG VÀ CẤU HÌNH MIDDLEWARE ===
+// ======================================================================
 var app = builder.Build();
 
-// Sử dụng CORS
+// Sử dụng CORS (Giữ nguyên của bạn)
 app.UseCors("AllowReactApp");
 
 if (app.Environment.IsDevelopment())
@@ -70,18 +109,22 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// ======================================================================
-// === THÊM 2 DÒNG NÀY (QUAN TRỌNG: PHẢI ĐÚNG THỨ TỰ) ===
-// ======================================================================
-app.UseAuthentication(); // <-- Middleware để xác thực người dùng dựa trên token
-app.UseAuthorization();  // <-- Middleware để kiểm tra quyền hạn của người dùng đã xác thực
-// ======================================================================
+// Thứ tự các middleware này rất quan trọng (Giữ nguyên của bạn)
+app.UseAuthentication();
+app.UseAuthorization();
 
-app.UseStaticFiles(); //cho phép hiển thị file ảnh nhân viên 
+app.UseStaticFiles(); //cho phép hiển thị file ảnh nhân viên
 
 app.MapControllers();
 
-// Phần Seeding database giữ nguyên
+// ======================================================================
+// === SEEDING DATABASE (Giữ nguyên của bạn) ===
+// GHI CHÚ QUAN TRỌNG:
+// Đoạn code này đang tạo một tài khoản trong bảng "Users".
+// Tuy nhiên, hệ thống đăng nhập mới của chúng ta đang dùng bảng "NhanViens".
+// Bạn nên xem xét xóa bỏ Model "User" và đoạn code seeding này
+// để tránh nhầm lẫn. Hoặc chỉnh sửa nó để tạo một Nhân Viên admin mặc định.
+// ======================================================================
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -90,7 +133,8 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<AppDbContext>();
         context.Database.EnsureCreated();
 
-        if (!context.Users.Any())
+        // Kiểm tra xem bảng Users có tồn tại và có dữ liệu không
+        if (context.Users != null && !context.Users.Any())
         {
             Console.WriteLine("Cơ sở dữ liệu trống, đang tạo tài khoản Admin mặc định...");
 

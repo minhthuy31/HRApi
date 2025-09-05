@@ -69,6 +69,7 @@ namespace HRApi.Controllers
                     NgaySinh = nv.NgaySinh.HasValue ? nv.NgaySinh.Value.Date : (DateTime?)null,
                     GioiTinh = nv.GioiTinh,
                     DanToc = nv.DanToc,
+
                     TinhTrangHonNhan = nv.TinhTrangHonNhan,
                     QueQuan = nv.QueQuan,
                     DiaChiThuongTru = nv.DiaChiThuongTru,

@@ -1,138 +1,131 @@
 ﻿using HRApi.Data;
-using HRApi.DTOs;
+using HRApi.Models;
+using Login.Models.DTOs;
+using Login.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
+namespace HRApi.Controllers;
+using BCrypt.Net;
 
-namespace HRApi.Controllers
+
+[ApiController]
+[Route("api/[controller]")]
+[Produces("application/json")]
+public class AuthController : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class AuthController : ControllerBase
+    private readonly AppDbContext _db;
+    private readonly IEmailService _email;
+    private readonly ITokenService _tokenSvc;
+
+    public AuthController(AppDbContext db, IEmailService email, ITokenService tokenSvc)
     {
-        private readonly AppDbContext _context;
-        private readonly IConfiguration _configuration; // Inject IConfiguration
+        _db = db;
+        _email = email;
+        _tokenSvc = tokenSvc;
+    }
 
-        public AuthController(AppDbContext context, IConfiguration configuration) // Sửa constructor
-        {
-            _context = context;
-            _configuration = configuration; // Sửa constructor
-        }
+    // API Đăng ký này có thể không cần thiết nếu bạn tạo nhân viên từ một chức năng khác
+    // Nhưng vẫn giữ lại nếu bạn muốn có chức năng đăng ký riêng
+    [HttpPost("register")]
+    public async Task<IActionResult> Register([FromBody] RegisterRequest req)
+    {
+        var exists = _db.NhanViens.Any(nv => nv.Email == req.Email);
+        if (exists)
+            return BadRequest(new { message = "Email đã tồn tại" });
 
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
-        {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginDto.Username);
-            if (user == null || !BCrypt.Net.BCrypt.Verify(loginDto.Password, user.Password))
-            {
-                return Unauthorized(new { message = "Tên đăng nhập hoặc mật khẩu không đúng!" });
-            }
+        // Logic tạo mã nhân viên mới, bạn có thể tùy chỉnh
+        var lastNv = _db.NhanViens.OrderByDescending(n => n.MaNhanVien).FirstOrDefault();
+        int newId = (lastNv == null) ? 1 : int.Parse(lastNv.MaNhanVien.Substring(2)) + 1;
+        string newMaNV = $"NV{newId:D4}";
 
-            // --- TẠO TOKEN THẬT ---
-            var authClaims = new List<Claim>
+        var nhanVien = new NhanVien
         {
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, user.Role),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            MaNhanVien = newMaNV,
+            Email = req.Email,
+            MatKhau = BCrypt.HashPassword(req.Password),
+            TrangThai = true // Mặc định là hoạt động
         };
 
-            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+        _db.NhanViens.Add(nhanVien);
+        await _db.SaveChangesAsync();
 
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                expires: DateTime.Now.AddHours(3),
-                claims: authClaims,
-                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
-            );
+        return Ok(new { message = "Đăng ký thành công" });
+    }
 
-            return Ok(new
-            {
-                message = "Đăng nhập thành công!",
-                token = new JwtSecurityTokenHandler().WriteToken(token), // Trả về token thật
-                expiration = token.ValidTo
-            });
-        }
+    /// <summary>
+    /// Đăng nhập bằng Email và Mật khẩu của Nhân Viên
+    /// </summary>
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(AuthResponse), 200)]
+    public ActionResult<AuthResponse> Login([FromBody] LoginRequest req)
+    {
+        var nhanVien = _db.NhanViens.FirstOrDefault(u => u.Email == req.Email);
 
-        [HttpPost("change-password")]
-        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto changePasswordDto)
-        {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == changePasswordDto.Username);
+        // Kiểm tra nhân viên có tồn tại, có mật khẩu, và mật khẩu đúng không
+        if (nhanVien == null || string.IsNullOrEmpty(nhanVien.MatKhau) || !BCrypt.Verify(req.Password, nhanVien.MatKhau))
+            return Unauthorized(new { message = "Sai email hoặc mật khẩu" });
 
-            if (user == null || !BCrypt.Net.BCrypt.Verify(changePasswordDto.OldPassword, user.Password))
-            {
-                return BadRequest(new { message = "Tên đăng nhập hoặc mật khẩu cũ không đúng." });
-            }
+        // Kiểm tra nhân viên có đang hoạt động không
+        if (!nhanVien.TrangThai)
+            return Unauthorized(new { message = "Tài khoản này đã bị vô hiệu hóa." });
 
-            user.Password = BCrypt.Net.BCrypt.HashPassword(changePasswordDto.NewPassword);
-            _context.Users.Update(user);
-            await _context.SaveChangesAsync();
+        // Tạo token với MaNhanVien (string)
+        var jwt = _tokenSvc.CreateToken(nhanVien.MaNhanVien, nhanVien.Email);
+        return Ok(new AuthResponse { Token = jwt, Email = nhanVien.Email, MaNhanVien = nhanVien.MaNhanVien, HoTen = nhanVien.HoTen });
+    }
 
-            return Ok(new { message = "Đổi mật khẩu thành công!" });
-        }
+    /// <summary>
+    /// Gửi mã xác nhận quên mật khẩu
+    /// </summary>
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req)
+    {
+        var nhanVien = _db.NhanViens.FirstOrDefault(u => u.Email == req.Email);
+        if (nhanVien == null) return Ok(new { message = "Nếu email tồn tại, một mã xác nhận sẽ được gửi." }); // Không báo email không tồn tại để bảo mật
 
-        [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto forgotPasswordDto)
-        {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == forgotPasswordDto.Username);
+        var code = Random.Shared.Next(100000, 999999).ToString();
+        nhanVien.ResetCode = code;
+        nhanVien.ResetCodeExpiry = DateTime.UtcNow.AddMinutes(10); // Thời gian sống của mã là 10 phút
+        await _db.SaveChangesAsync();
 
-            if (user != null)
-            {
-                user.PasswordResetToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(64));
-                user.ResetTokenExpires = DateTime.UtcNow.AddMinutes(15);
-                await _context.SaveChangesAsync();
+        await _email.SendResetPasswordEmail(nhanVien.Email, code);
+        return Ok(new { message = "Đã gửi mã xác nhận" });
+    }
 
-                Console.WriteLine($"An email would be sent to {user.Email} with token: {user.PasswordResetToken}");
-            }
+    /// <summary>
+    /// Đặt lại mật khẩu bằng mã xác nhận
+    /// </summary>
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest req)
+    {
+        var nhanVien = _db.NhanViens.FirstOrDefault(u => u.Email == req.Email);
+        if (nhanVien == null) return BadRequest(new { message = "Yêu cầu không hợp lệ." });
 
-            return Ok(new { message = "Nếu tên đăng nhập tồn tại trong hệ thống, một liên kết đặt lại mật khẩu đã được gửi đến email đã đăng ký." });
-        }
+        if (nhanVien.ResetCode != req.Code || nhanVien.ResetCodeExpiry == null || nhanVien.ResetCodeExpiry < DateTime.UtcNow)
+            return BadRequest(new { message = "Mã không hợp lệ hoặc đã hết hạn" });
 
-        [HttpPost("reset-password")]
-        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto resetPasswordDto)
-        {
-            var user = await _context.Users.FirstOrDefaultAsync(u =>
-                u.PasswordResetToken == resetPasswordDto.Token &&
-                u.ResetTokenExpires > DateTime.UtcNow);
+        nhanVien.MatKhau = BCrypt.HashPassword(req.NewPassword);
+        nhanVien.ResetCode = null;
+        nhanVien.ResetCodeExpiry = null;
+        await _db.SaveChangesAsync();
 
-            if (user == null)
-            {
-                return BadRequest(new { message = "Token không hợp lệ hoặc đã hết hạn." });
-            }
+        return Ok(new { message = "Đổi mật khẩu thành công" });
+    }
 
-            user.Password = BCrypt.Net.BCrypt.HashPassword(resetPasswordDto.NewPassword);
+    /// <summary>
+    /// Lấy thông tin user hiện tại từ JWT
+    /// </summary>
+    [Authorize]
+    [HttpGet("me")]
+    public IActionResult Me()
+    {
+        var emailClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+        var idClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
 
-            user.PasswordResetToken = null;
-            user.ResetTokenExpires = null;
-            await _context.SaveChangesAsync();
+        var authHeader = Request.Headers["Authorization"].ToString();
+        var token = authHeader.StartsWith("Bearer ") ? authHeader.Substring("Bearer ".Length) : string.Empty;
 
-            return Ok(new { message = "Mật khẩu đã được đặt lại thành công." });
-        }
-        [Authorize]
-        [HttpGet("me")]
-        public async Task<IActionResult> GetMyProfile()
-        {
-            // Lấy username từ token đã được xác thực
-            var username = User.FindFirst(ClaimTypes.Name)?.Value;
-
-            if (username == null)
-            {
-                return Unauthorized();
-            }
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == username);
-
-            if (user == null)
-            {
-                return NotFound();
-            }
-            return Ok(new { user.Id, user.Username, user.Email, user.Role, user.CreatedAt });
-        }
+        return Ok(new { Token = token, Email = emailClaim ?? "", MaNhanVien = idClaim ?? "" });
     }
 }

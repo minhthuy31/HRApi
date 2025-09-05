@@ -27,6 +27,10 @@ namespace HRApi.Models
         public string? SoTaiKhoanNH { get; set; }
         public string? TenNganHang { get; set; }
 
+        //thêm 2 trường này để lưu mã reset và thời gian hết hạn
+        public string? ResetCode { get; set; }
+        public DateTime? ResetCodeExpiry { get; set; }
+
         // Foreign keys
         public string? MaChucVuNV { get; set; }
         public string? MaPhongBan { get; set; }
