@@ -1,9 +1,11 @@
 ﻿using HRApi.Data;
+using HRApi.DTOs;
 using HRApi.Models;
 using Login.Models.DTOs;
 using Login.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 namespace HRApi.Controllers;
 using BCrypt.Net;
@@ -25,8 +27,6 @@ public class AuthController : ControllerBase
         _tokenSvc = tokenSvc;
     }
 
-    // API Đăng ký này có thể không cần thiết nếu bạn tạo nhân viên từ một chức năng khác
-    // Nhưng vẫn giữ lại nếu bạn muốn có chức năng đăng ký riêng
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest req)
     {
@@ -44,7 +44,7 @@ public class AuthController : ControllerBase
             MaNhanVien = newMaNV,
             Email = req.Email,
             MatKhau = BCrypt.HashPassword(req.Password),
-            TrangThai = true // Mặc định là hoạt động
+            TrangThai = true
         };
 
         _db.NhanViens.Add(nhanVien);
@@ -62,15 +62,22 @@ public class AuthController : ControllerBase
     {
         var nhanVien = _db.NhanViens.FirstOrDefault(u => u.Email == req.Email);
 
-        // Kiểm tra nhân viên có tồn tại, có mật khẩu, và mật khẩu đúng không
+        Console.WriteLine($"Email nhập: {req.Email}");
+        Console.WriteLine($"Có nhân viên? {nhanVien != null}");
+
+        if (nhanVien != null)
+        {
+            Console.WriteLine($"Mật khẩu DB: {nhanVien.MatKhau}");
+            Console.WriteLine($"Verify: {BCrypt.Verify(req.Password, nhanVien.MatKhau)}");
+            Console.WriteLine($"TrangThai: {nhanVien.TrangThai}");
+        }
+
         if (nhanVien == null || string.IsNullOrEmpty(nhanVien.MatKhau) || !BCrypt.Verify(req.Password, nhanVien.MatKhau))
             return Unauthorized(new { message = "Sai email hoặc mật khẩu" });
 
-        // Kiểm tra nhân viên có đang hoạt động không
         if (!nhanVien.TrangThai)
             return Unauthorized(new { message = "Tài khoản này đã bị vô hiệu hóa." });
 
-        // Tạo token với MaNhanVien (string)
         var jwt = _tokenSvc.CreateToken(nhanVien.MaNhanVien, nhanVien.Email);
         return Ok(new AuthResponse { Token = jwt, Email = nhanVien.Email, MaNhanVien = nhanVien.MaNhanVien, HoTen = nhanVien.HoTen });
     }
@@ -122,10 +129,39 @@ public class AuthController : ControllerBase
     {
         var emailClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
         var idClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-
+        var nhanVien = _db.NhanViens.FirstOrDefault(nv => nv.Email == emailClaim);
         var authHeader = Request.Headers["Authorization"].ToString();
         var token = authHeader.StartsWith("Bearer ") ? authHeader.Substring("Bearer ".Length) : string.Empty;
 
-        return Ok(new { Token = token, Email = emailClaim ?? "", MaNhanVien = idClaim ?? "" });
+        return Ok(new { Token = token, Email = emailClaim ?? "", MaNhanVien = idClaim ?? "", HoTen = nhanVien?.HoTen ?? "" });
+    }
+
+
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)
+    {
+        // Lấy email từ token của người dùng đang đăng nhập
+        var userEmail = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+        if (userEmail == null)
+        {
+            return Unauthorized();
+        }
+
+        var nhanVien = await _db.NhanViens.FirstOrDefaultAsync(nv => nv.Email == userEmail);
+        if (nhanVien == null)
+        {
+            return NotFound("Không tìm thấy người dùng.");
+        }
+        if (string.IsNullOrEmpty(nhanVien.MatKhau) || !BCrypt.Verify(req.OldPassword, nhanVien.MatKhau))
+        {
+            return BadRequest(new { message = "Mật khẩu hiện tại không đúng." });
+        }
+
+        // Cập nhật mật khẩu mới
+        nhanVien.MatKhau = BCrypt.HashPassword(req.NewPassword);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Đổi mật khẩu thành công." });
     }
 }
