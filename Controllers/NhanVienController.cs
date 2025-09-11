@@ -104,6 +104,7 @@ namespace HRApi.Controllers
 
             return Ok(sortedResult);
         }
+
         [HttpGet("{id}")]
         public async Task<ActionResult<NhanVienDetailDto>> GetNhanVien(string id)
         {
@@ -156,6 +157,8 @@ namespace HRApi.Controllers
         {
             if (dto == null) return BadRequest("Dữ liệu không hợp lệ.");
             if (string.IsNullOrEmpty(dto.MatKhau)) return BadRequest("Mật khẩu là bắt buộc.");
+            if (string.IsNullOrEmpty(dto.MaChucVuNV)) return BadRequest("Chức vụ là bắt buộc để gán quyền.");
+
             var allMaNVs = await _context.NhanViens.Select(nv => nv.MaNhanVien).ToListAsync();
             int maxId = 0;
             if (allMaNVs.Any())
@@ -166,6 +169,32 @@ namespace HRApi.Controllers
                     .DefaultIfEmpty(0).Max();
             }
             string newMaNV = $"NV{(maxId + 1):D4}";
+
+            int? assignedRoleId = null;
+            switch (dto.MaChucVuNV)
+            {
+                case "GD":
+                    var giamDocRole = await _context.UserRoles.FirstOrDefaultAsync(r => r.NameRole == "Giám đốc");
+                    if (giamDocRole != null) assignedRoleId = giamDocRole.RoleId;
+                    break;
+                case "TP":
+                    var truongPhongRole = await _context.UserRoles.FirstOrDefaultAsync(r => r.NameRole == "Trưởng phòng");
+                    if (truongPhongRole != null) assignedRoleId = truongPhongRole.RoleId;
+                    break;
+                case "PP":
+                    var phoPhongRole = await _context.UserRoles.FirstOrDefaultAsync(r => r.NameRole == "Phó phòng");
+                    if (phoPhongRole != null) assignedRoleId = phoPhongRole.RoleId;
+                    break;
+                case "NS":
+                    var nhanSuRole = await _context.UserRoles.FirstOrDefaultAsync(r => r.NameRole == "Nhân viên nhân sự");
+                    if (nhanSuRole != null) assignedRoleId = nhanSuRole.RoleId;
+                    break;
+                default:
+                    var nhanVienRole = await _context.UserRoles.FirstOrDefaultAsync(r => r.NameRole == "Nhân viên");
+                    if (nhanVienRole != null) assignedRoleId = nhanVienRole.RoleId;
+                    break;
+            }
+
             var newNhanVien = new NhanVien
             {
                 MaNhanVien = newMaNV,
