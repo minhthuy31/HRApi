@@ -1,6 +1,7 @@
 ﻿using HRApi.Data;
 using HRApi.DTOs;
 using HRApi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 namespace HRApi.Controllers
@@ -111,6 +112,7 @@ namespace HRApi.Controllers
                 .Include(nv => nv.ChucVuNhanVien)
                 .Include(nv => nv.ChuyenNganh)
                 .Include(nv => nv.TrinhDoHocVan)
+                .Include(nv => nv.UserRole)
                 .Where(nv => nv.MaNhanVien == id)
                 .Select(nv => new NhanVienDetailDto
                 {
@@ -137,15 +139,18 @@ namespace HRApi.Controllers
                     MaChucVuNV = nv.MaChucVuNV,
                     MaChuyenNganh = nv.MaChuyenNganh,
                     MaTrinhDoHocVan = nv.MaTrinhDoHocVan,
+                    RoleId = nv.RoleId,
                     TenPhongBan = nv.PhongBan != null ? nv.PhongBan.TenPhongBan : null,
                     TenChucVu = nv.ChucVuNhanVien != null ? nv.ChucVuNhanVien.TenChucVu : null,
                     TenChuyenNganh = nv.ChuyenNganh != null ? nv.ChuyenNganh.TenChuyenNganh : null,
-                    TenTrinhDoHocVan = nv.TrinhDoHocVan != null ? nv.TrinhDoHocVan.TenTrinhDo : null
+                    TenTrinhDoHocVan = nv.TrinhDoHocVan != null ? nv.TrinhDoHocVan.TenTrinhDo : null,
+                    TenRole = nv.UserRole != null ? nv.UserRole.NameRole : null
                 })
                 .FirstOrDefaultAsync();
             if (nhanVien == null) return NotFound();
             return Ok(nhanVien);
         }
+
         [HttpPost]
         public async Task<ActionResult<NhanVien>> CreateNhanVien([FromBody] NhanVienCreateUpdateDto dto)
         {
@@ -186,12 +191,15 @@ namespace HRApi.Controllers
                 MaChucVuNV = dto.MaChucVuNV,
                 MaPhongBan = dto.MaPhongBan,
                 MaChuyenNganh = dto.MaChuyenNganh,
-                MaTrinhDoHocVan = dto.MaTrinhDoHocVan
+                MaTrinhDoHocVan = dto.MaTrinhDoHocVan,
+                RoleId = dto.RoleId
             };
             _context.NhanViens.Add(newNhanVien);
             await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetNhanVien), new { id = newNhanVien.MaNhanVien }, newNhanVien);
         }
+
+        [Authorize(Roles = "Trưởng phòng, Giám đốc")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateNhanVien(string id, [FromBody] NhanVienCreateUpdateDto dto)
         {
@@ -219,6 +227,7 @@ namespace HRApi.Controllers
             existingNhanVien.MaPhongBan = dto.MaPhongBan;
             existingNhanVien.MaChuyenNganh = dto.MaChuyenNganh;
             existingNhanVien.MaTrinhDoHocVan = dto.MaTrinhDoHocVan;
+            existingNhanVien.RoleId = dto.RoleId;
             if (!string.IsNullOrEmpty(dto.MatKhau))
             {
                 existingNhanVien.MatKhau = BCrypt.Net.BCrypt.HashPassword(dto.MatKhau);
@@ -246,6 +255,7 @@ namespace HRApi.Controllers
                 return StatusCode(500, $"Lỗi server: {ex.Message}");
             }
         }
+        [Authorize]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DisableNhanVien(string id)
         {

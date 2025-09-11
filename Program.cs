@@ -1,12 +1,11 @@
-﻿// Thêm các using statement cần thiết
-using HRApi.Data;
+﻿using HRApi.Data;
 using HRApi.Models;
-using HRApi.Services; // QUAN TRỌNG: Namespace cho các services
+using HRApi.Services;
 using Login.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models; // Cần cho Swagger
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,9 +59,6 @@ builder.Services.AddCors(options =>
                           .AllowAnyHeader());
 });
 
-// ======================================================================
-// === CẤU HÌNH SWAGGER (Nâng cấp) ===
-// ======================================================================
 builder.Services.AddEndpointsApiExplorer();
 // Nâng cấp Swagger để hỗ trợ Authorize button
 builder.Services.AddSwaggerGen(c =>
@@ -93,9 +89,6 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 
-// ======================================================================
-// === XÂY DỰNG ỨNG DỤNG VÀ CẤU HÌNH MIDDLEWARE ===
-// ======================================================================
 var app = builder.Build();
 
 // Sử dụng CORS (Giữ nguyên của bạn)
@@ -109,7 +102,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Thứ tự các middleware này rất quan trọng (Giữ nguyên của bạn)
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -117,14 +110,6 @@ app.UseStaticFiles(); //cho phép hiển thị file ảnh nhân viên
 
 app.MapControllers();
 
-// ======================================================================
-// === SEEDING DATABASE (Giữ nguyên của bạn) ===
-// GHI CHÚ QUAN TRỌNG:
-// Đoạn code này đang tạo một tài khoản trong bảng "Users".
-// Tuy nhiên, hệ thống đăng nhập mới của chúng ta đang dùng bảng "NhanViens".
-// Bạn nên xem xét xóa bỏ Model "User" và đoạn code seeding này
-// để tránh nhầm lẫn. Hoặc chỉnh sửa nó để tạo một Nhân Viên admin mặc định.
-// ======================================================================
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;

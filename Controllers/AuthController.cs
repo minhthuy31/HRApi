@@ -57,10 +57,11 @@ public class AuthController : ControllerBase
     /// Đăng nhập bằng Email và Mật khẩu của Nhân Viên
     /// </summary>
     [HttpPost("login")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(AuthResponse), 200)]
     public ActionResult<AuthResponse> Login([FromBody] LoginRequest req)
     {
-        var nhanVien = _db.NhanViens.FirstOrDefault(u => u.Email == req.Email);
+        var nhanVien = _db.NhanViens.Include(u => u.UserRole).FirstOrDefault(u => u.Email == req.Email);
 
         Console.WriteLine($"Email nhập: {req.Email}");
         Console.WriteLine($"Có nhân viên? {nhanVien != null}");
@@ -70,6 +71,7 @@ public class AuthController : ControllerBase
             Console.WriteLine($"Mật khẩu DB: {nhanVien.MatKhau}");
             Console.WriteLine($"Verify: {BCrypt.Verify(req.Password, nhanVien.MatKhau)}");
             Console.WriteLine($"TrangThai: {nhanVien.TrangThai}");
+            Console.WriteLine($"Role: {nhanVien.UserRole?.NameRole ?? "Không có role"}");
         }
 
         if (nhanVien == null || string.IsNullOrEmpty(nhanVien.MatKhau) || !BCrypt.Verify(req.Password, nhanVien.MatKhau))
@@ -77,19 +79,27 @@ public class AuthController : ControllerBase
 
         if (!nhanVien.TrangThai)
             return Unauthorized(new { message = "Tài khoản này đã bị vô hiệu hóa." });
-
-        var jwt = _tokenSvc.CreateToken(nhanVien.MaNhanVien, nhanVien.Email);
-        return Ok(new AuthResponse { Token = jwt, Email = nhanVien.Email, MaNhanVien = nhanVien.MaNhanVien, HoTen = nhanVien.HoTen });
+        var roleName = nhanVien.UserRole?.NameRole;
+        var jwt = _tokenSvc.CreateToken(nhanVien.MaNhanVien, nhanVien.Email, roleName);
+        return Ok(new AuthResponse
+        {
+            Token = jwt,
+            Email = nhanVien.Email,
+            MaNhanVien = nhanVien.MaNhanVien,
+            HoTen = nhanVien.HoTen,
+            Role = roleName
+        });
     }
 
     /// <summary>
     /// Gửi mã xác nhận quên mật khẩu(gửi về email)
     /// </summary>
+    [AllowAnonymous]
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req)
     {
         var nhanVien = _db.NhanViens.FirstOrDefault(u => u.Email == req.Email);
-        if (nhanVien == null) return Ok(new { message = "Nếu email tồn tại, một mã xác nhận sẽ được gửi." }); // Không báo email không tồn tại để bảo mật
+        if (nhanVien == null) return Ok(new { message = "Nếu email tồn tại, một mã xác nhận sẽ được gửi." });
 
         var code = Random.Shared.Next(100000, 999999).ToString();
         nhanVien.ResetCode = code;
@@ -103,6 +113,8 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Đặt lại mật khẩu bằng mã xác nhận
     /// </summary>
+    /// 
+    [AllowAnonymous]
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest req)
     {
@@ -123,20 +135,30 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Lấy thông tin user hiện tại từ JWT
     /// </summary>
+    /// 
+    [AllowAnonymous]
     [Authorize]
     [HttpGet("me")]
     public IActionResult Me()
     {
         var emailClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
         var idClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        var roleClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
         var nhanVien = _db.NhanViens.FirstOrDefault(nv => nv.Email == emailClaim);
         var authHeader = Request.Headers["Authorization"].ToString();
         var token = authHeader.StartsWith("Bearer ") ? authHeader.Substring("Bearer ".Length) : string.Empty;
 
-        return Ok(new { Token = token, Email = emailClaim ?? "", MaNhanVien = idClaim ?? "", HoTen = nhanVien?.HoTen ?? "" });
+        return Ok(new
+        {
+            Token = token,
+            Email = emailClaim ?? "",
+            MaNhanVien = idClaim ?? "",
+            HoTen = nhanVien?.HoTen ?? "",
+            Role = roleClaim ?? ""
+        });
     }
 
-
+    [AllowAnonymous]
     [Authorize]
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)

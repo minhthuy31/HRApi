@@ -26,5 +26,6 @@
         public string? MaHopDong { get; set; }
         public string? MaChuyenNganh { get; set; }
         public string? MaTrinhDoHocVan { get; set; }
+        public int? RoleId { get; set; }
     }
 }

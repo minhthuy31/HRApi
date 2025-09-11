@@ -6,10 +6,8 @@
         public string Username { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
-        public string Role { get; set; } = "User"; // "Admin" hoặc "User"
+        public string Role { get; set; } = "User"; //admin
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-        // --- THÊM 2 TRƯỜNG MỚI DƯỚI ĐÂY ---
         public string? PasswordResetToken { get; set; }
         public DateTime? ResetTokenExpires { get; set; }
     }

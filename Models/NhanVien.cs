@@ -27,7 +27,7 @@ namespace HRApi.Models
         public string? SoTaiKhoanNH { get; set; }
         public string? TenNganHang { get; set; }
 
-        //thêm 2 trường này để lưu mã reset và thời gian hết hạn
+        //lưu mã reset và thời gian hết hạn
         public string? ResetCode { get; set; }
         public DateTime? ResetCodeExpiry { get; set; }
 
@@ -36,8 +36,8 @@ namespace HRApi.Models
         public string? MaPhongBan { get; set; }
         public string? MaChuyenNganh { get; set; }
         public string? MaTrinhDoHocVan { get; set; }
+        public int? RoleId { get; set; }
 
-        // Navigation properties
         [ForeignKey("MaPhongBan")]
         public virtual PhongBan? PhongBan { get; set; }
 
@@ -49,6 +49,8 @@ namespace HRApi.Models
 
         [ForeignKey("MaTrinhDoHocVan")]
         public virtual TrinhDoHocVan? TrinhDoHocVan { get; set; }
+        [ForeignKey("RoleId")]
+        public virtual UserRole? UserRole { get; set; }
     }
 }
 

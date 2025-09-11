@@ -11,9 +11,7 @@ namespace HRApi.Services
     {
         private readonly IConfiguration _config;
         public TokenService(IConfiguration config) { _config = config; }
-
-        // Thay int userId thành string userId
-        public string CreateToken(string userId, string email)
+        public string CreateToken(string userId, string email, string? role)
         {
             var issuer = _config["Jwt:Issuer"]!;
             var audience = _config["Jwt:Audience"]!;
@@ -24,6 +22,11 @@ namespace HRApi.Services
                 new Claim(ClaimTypes.NameIdentifier, userId),
                 new Claim(ClaimTypes.Email, email)
             };
+            //nếu có role thì thêm vào claim
+            if (!string.IsNullOrEmpty(role))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
 
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
