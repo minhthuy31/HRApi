@@ -80,14 +80,16 @@ public class AuthController : ControllerBase
         if (!nhanVien.TrangThai)
             return Unauthorized(new { message = "Tài khoản này đã bị vô hiệu hóa." });
         var roleName = nhanVien.UserRole?.NameRole;
-        var jwt = _tokenSvc.CreateToken(nhanVien.MaNhanVien, nhanVien.Email, roleName);
+        var maPhongBan = nhanVien.MaPhongBan;
+        var jwt = _tokenSvc.CreateToken(nhanVien.MaNhanVien, nhanVien.Email, roleName, maPhongBan);
         return Ok(new AuthResponse
         {
             Token = jwt,
             Email = nhanVien.Email,
             MaNhanVien = nhanVien.MaNhanVien,
             HoTen = nhanVien.HoTen,
-            Role = roleName
+            Role = roleName,
+            MaPhongBan = maPhongBan
         });
     }
 

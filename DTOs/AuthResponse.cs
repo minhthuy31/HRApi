@@ -8,5 +8,6 @@
         public string? MaNhanVien { get; set; }
         public string? HoTen { get; set; }
         public string? Role { get; set; }
+        public string? MaPhongBan { get; set; }
     }
 }

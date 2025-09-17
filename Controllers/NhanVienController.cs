@@ -4,6 +4,7 @@ using HRApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 namespace HRApi.Controllers
 {
     [Route("api/[controller]")]
@@ -16,6 +17,7 @@ namespace HRApi.Controllers
             _context = context;
         }
 
+        [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<NhanVienDetailDto>>> GetNhanViens(
      [FromQuery] string? maPhongBan,
@@ -24,8 +26,23 @@ namespace HRApi.Controllers
      [FromQuery] string? maChucVuNV,
      [FromQuery] bool? TrangThai)
         {
-            var query = _context.NhanViens.AsQueryable();
+            // Lấy thông tin của người dùng đang thực hiện request từ token
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
 
+            var query = _context.NhanViens.AsQueryable();
+            // Kiểm tra role người dùng là Trưởng phòng hoặc Nhân viên nhân sự
+            if (currentUserRole == "Trưởng phòng" || currentUserRole == "Nhân sự phòng")
+            {
+                if (!string.IsNullOrEmpty(currentUserMaPhongBan))
+                {
+                    query = query.Where(nv => nv.MaPhongBan == currentUserMaPhongBan);
+                }
+                else
+                {
+                    return Ok(new List<NhanVienDetailDto>());
+                }
+            }
             if (!string.IsNullOrEmpty(maPhongBan))
             {
                 query = query.Where(x => x.MaPhongBan == maPhongBan);
@@ -105,53 +122,68 @@ namespace HRApi.Controllers
             return Ok(sortedResult);
         }
 
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<NhanVienDetailDto>> GetNhanVien(string id)
         {
-            var nhanVien = await _context.NhanViens.AsNoTracking()
-                .Include(nv => nv.PhongBan)
-                .Include(nv => nv.ChucVuNhanVien)
-                .Include(nv => nv.ChuyenNganh)
-                .Include(nv => nv.TrinhDoHocVan)
-                .Include(nv => nv.UserRole)
-                .Where(nv => nv.MaNhanVien == id)
-                .Select(nv => new NhanVienDetailDto
+            // Lấy thông tin của nhân viên đang thực hiện request từ token
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            var currentUserId = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            //Nếu người dùng là nhân viên 
+            if (currentUserRole == "Nhân viên")
+            {
+                //So sánh id trong token với id trong request
+                if (currentUserId != id)
                 {
-                    MaNhanVien = nv.MaNhanVien,
-                    HoTen = nv.HoTen,
-                    NgaySinh = nv.NgaySinh,
-                    GioiTinh = nv.GioiTinh,
-                    DanToc = nv.DanToc,
-                    TinhTrangHonNhan = nv.TinhTrangHonNhan,
-                    QueQuan = nv.QueQuan,
-                    DiaChiThuongTru = nv.DiaChiThuongTru,
-                    DiaChiTamTru = nv.DiaChiTamTru,
-                    HinhAnh = nv.HinhAnh,
-                    sdt_NhanVien = nv.sdt_NhanVien,
-                    Email = nv.Email,
-                    CCCD = nv.CCCD,
-                    NgayCapCCCD = nv.NgayCapCCCD,
-                    NoiCapCCCD = nv.NoiCapCCCD,
-                    LoaiNhanVien = nv.LoaiNhanVien,
-                    TrangThai = nv.TrangThai,
-                    SoTaiKhoanNH = nv.SoTaiKhoanNH,
-                    TenNganHang = nv.TenNganHang,
-                    MaPhongBan = nv.MaPhongBan,
-                    MaChucVuNV = nv.MaChucVuNV,
-                    MaChuyenNganh = nv.MaChuyenNganh,
-                    MaTrinhDoHocVan = nv.MaTrinhDoHocVan,
-                    RoleId = nv.RoleId,
-                    TenPhongBan = nv.PhongBan != null ? nv.PhongBan.TenPhongBan : null,
-                    TenChucVu = nv.ChucVuNhanVien != null ? nv.ChucVuNhanVien.TenChucVu : null,
-                    TenChuyenNganh = nv.ChuyenNganh != null ? nv.ChuyenNganh.TenChuyenNganh : null,
-                    TenTrinhDoHocVan = nv.TrinhDoHocVan != null ? nv.TrinhDoHocVan.TenTrinhDo : null,
-                    TenRole = nv.UserRole != null ? nv.UserRole.NameRole : null
-                })
-                .FirstOrDefaultAsync();
+                    return Forbid("Bạn không có quyền truy cập thông tin của nhân viên khác.");
+                }
+            }
+            //Truy vấn thông tin nhân viên trong db
+            var nhanVien = await _context.NhanViens.AsNoTracking()
+                        .Include(nv => nv.PhongBan)
+                        .Include(nv => nv.ChucVuNhanVien)
+                        .Include(nv => nv.ChuyenNganh)
+                        .Include(nv => nv.TrinhDoHocVan)
+                        .Include(nv => nv.UserRole)
+                        .Where(nv => nv.MaNhanVien == id)
+                        .Select(nv => new NhanVienDetailDto
+                        {
+                            MaNhanVien = nv.MaNhanVien,
+                            HoTen = nv.HoTen,
+                            NgaySinh = nv.NgaySinh,
+                            GioiTinh = nv.GioiTinh,
+                            DanToc = nv.DanToc,
+                            TinhTrangHonNhan = nv.TinhTrangHonNhan,
+                            QueQuan = nv.QueQuan,
+                            DiaChiThuongTru = nv.DiaChiThuongTru,
+                            DiaChiTamTru = nv.DiaChiTamTru,
+                            HinhAnh = nv.HinhAnh,
+                            sdt_NhanVien = nv.sdt_NhanVien,
+                            Email = nv.Email,
+                            CCCD = nv.CCCD,
+                            NgayCapCCCD = nv.NgayCapCCCD,
+                            NoiCapCCCD = nv.NoiCapCCCD,
+                            LoaiNhanVien = nv.LoaiNhanVien,
+                            TrangThai = nv.TrangThai,
+                            SoTaiKhoanNH = nv.SoTaiKhoanNH,
+                            TenNganHang = nv.TenNganHang,
+                            MaPhongBan = nv.MaPhongBan,
+                            MaChucVuNV = nv.MaChucVuNV,
+                            MaChuyenNganh = nv.MaChuyenNganh,
+                            MaTrinhDoHocVan = nv.MaTrinhDoHocVan,
+                            RoleId = nv.RoleId,
+                            TenPhongBan = nv.PhongBan != null ? nv.PhongBan.TenPhongBan : null,
+                            TenChucVu = nv.ChucVuNhanVien != null ? nv.ChucVuNhanVien.TenChucVu : null,
+                            TenChuyenNganh = nv.ChuyenNganh != null ? nv.ChuyenNganh.TenChuyenNganh : null,
+                            TenTrinhDoHocVan = nv.TrinhDoHocVan != null ? nv.TrinhDoHocVan.TenTrinhDo : null,
+                            TenRole = nv.UserRole != null ? nv.UserRole.NameRole : null
+                        })
+                        .FirstOrDefaultAsync();
             if (nhanVien == null) return NotFound();
             return Ok(nhanVien);
         }
 
+        [Authorize]
         [HttpPost]
         public async Task<ActionResult<NhanVien>> CreateNhanVien([FromBody] NhanVienCreateUpdateDto dto)
         {
@@ -228,7 +260,7 @@ namespace HRApi.Controllers
             return CreatedAtAction(nameof(GetNhanVien), new { id = newNhanVien.MaNhanVien }, newNhanVien);
         }
 
-        [Authorize(Roles = "Trưởng phòng, Giám đốc")]
+        [Authorize]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateNhanVien(string id, [FromBody] NhanVienCreateUpdateDto dto)
         {
@@ -264,6 +296,8 @@ namespace HRApi.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
+
+        [Authorize]
         [HttpPost("UploadImage")]
         public async Task<IActionResult> UploadImage()
         {
@@ -301,6 +335,7 @@ namespace HRApi.Controllers
                 return StatusCode(500, $"Lỗi khi cập nhật trạng thái: {ex.Message}");
             }
         }
+        [Authorize]
         [HttpPost("{id}/activate")]
         public async Task<IActionResult> ActivateNhanVien(string id)
         {

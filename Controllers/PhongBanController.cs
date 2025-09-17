@@ -1,7 +1,9 @@
 ﻿using HRApi.Data;
 using HRApi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace HRApi.Controllers
 {
@@ -12,20 +14,38 @@ namespace HRApi.Controllers
         private readonly AppDbContext _context;
         public PhongBanController(AppDbContext context) { _context = context; }
 
-        // GET: api/PhongBan
+        [Authorize]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PhongBan>>> GetPhongBans([FromQuery] string? searchTerm)
+        public async Task<ActionResult<IEnumerable<PhongBan>>> GetPhongBans([FromQuery] string? searchTerm, [FromQuery] bool? trangThai)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
+
             var query = _context.PhongBans.AsQueryable();
+            if (currentUserRole == "Trưởng phòng" || currentUserRole == "Nhân sự phòng")
+            {
+                if (!string.IsNullOrEmpty(currentUserMaPhongBan))
+                {
+                    // Trưởng/Nhân sự phòng chỉ thấy phòng ban của chính họ
+                    query = query.Where(pb => pb.MaPhongBan == currentUserMaPhongBan);
+                }
+                else
+                {
+                    return Ok(new List<PhongBan>());
+                }
+            }
+            if (trangThai.HasValue)
+            {
+                query = query.Where(pb => pb.TrangThai == trangThai.Value);
+            }
             if (!string.IsNullOrEmpty(searchTerm))
             {
-                query = query.Where(pb => pb.TenPhongBan.Contains(searchTerm)
-                                       || pb.MaPhongBan.Contains(searchTerm));
+                query = query.Where(pb => pb.TenPhongBan.Contains(searchTerm) || pb.MaPhongBan.Contains(searchTerm));
             }
             return await query.OrderBy(pb => pb.TenPhongBan).ToListAsync();
         }
 
-        // GET: api/PhongBan/{id}
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<PhongBan>> GetPhongBan(string id)
         {
@@ -34,7 +54,7 @@ namespace HRApi.Controllers
             return phongBan;
         }
 
-        // POST: api/PhongBan
+        [Authorize]
         [HttpPost]
         public async Task<ActionResult<PhongBan>> CreatePhongBan([FromBody] PhongBan phongBan)
         {
@@ -66,7 +86,7 @@ namespace HRApi.Controllers
             return CreatedAtAction(nameof(GetPhongBan), new { id = phongBan.MaPhongBan }, phongBan);
         }
 
-        // PUT: api/PhongBan/{id}
+        [Authorize]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdatePhongBan(string id, [FromBody] PhongBan phongBan)
         {
@@ -80,6 +100,7 @@ namespace HRApi.Controllers
             existing.TenPhongBan = phongBan.TenPhongBan;
             existing.DiaChi = phongBan.DiaChi;
             existing.sdt_PhongBan = phongBan.sdt_PhongBan;
+            existing.TrangThai = phongBan.TrangThai;
 
             try
             {
@@ -92,23 +113,29 @@ namespace HRApi.Controllers
             }
         }
 
-        // DELETE: api/PhongBan/{id}
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePhongBan(string id)
+        [Authorize]
+        // POST: api/PhongBan/PB01/disable
+        [HttpPost("{id}/disable")]
+        public async Task<IActionResult> DisablePhongBan(string id)
         {
             var phongBan = await _context.PhongBans.FindAsync(id);
             if (phongBan == null) return NotFound("Không tìm thấy phòng ban.");
 
-            try
-            {
-                _context.PhongBans.Remove(phongBan);
-                await _context.SaveChangesAsync();
-                return NoContent();
-            }
-            catch (DbUpdateException)
-            {
-                return BadRequest("Không thể xóa phòng ban này vì có nhân viên đang liên kết.");
-            }
+            phongBan.TrangThai = false;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = $"Phòng ban '{phongBan.TenPhongBan}' đã được vô hiệu hóa." });
+        }
+
+        // POST: api/PhongBan/PB01/activate
+        [HttpPost("{id}/activate")]
+        public async Task<IActionResult> ActivatePhongBan(string id)
+        {
+            var phongBan = await _context.PhongBans.FindAsync(id);
+            if (phongBan == null) return NotFound("Không tìm thấy phòng ban.");
+
+            phongBan.TrangThai = true;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = $"Phòng ban '{phongBan.TenPhongBan}' đã được kích hoạt lại." });
         }
     }
 }
