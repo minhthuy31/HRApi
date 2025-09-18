@@ -22,7 +22,7 @@ namespace HRApi.Controllers
             var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
 
             var query = _context.PhongBans.AsQueryable();
-            if (currentUserRole == "Trưởng phòng" || currentUserRole == "Nhân sự phòng")
+            if (currentUserRole == "Trưởng phòng" || currentUserRole == "Nhân sự phòng" || currentUserRole == "Nhân viên")
             {
                 if (!string.IsNullOrEmpty(currentUserMaPhongBan))
                 {
