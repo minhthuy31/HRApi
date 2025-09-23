@@ -31,10 +31,8 @@ namespace HRApi.Controllers
                 {
                     c.Id,
                     c.MaNhanVien,
-                    NgayChamCong = c.NgayChamCong.ToString("yyyy-MM-dd"),
-                    c.TrangThai,
-                    GioVao = c.GioVao.HasValue ? c.GioVao.Value.ToString(@"hh\:mm") : null,
-                    GioRa = c.GioRa.HasValue ? c.GioRa.Value.ToString(@"hh\:mm") : null,
+                    NgayChamCong = c.NgayChamCong.Date.ToString("yyyy-MM-dd"),
+                    c.NgayCong,
                     c.GhiChu
                 })
                 .ToListAsync();
@@ -53,15 +51,15 @@ namespace HRApi.Controllers
 
             if (existingRecord != null)
             {
-                // Cập nhật bản ghi đã có
-                existingRecord.TrangThai = chamCongRequest.TrangThai;
-                existingRecord.GioVao = chamCongRequest.GioVao;
-                existingRecord.GioRa = chamCongRequest.GioRa;
-                existingRecord.GhiChu = chamCongRequest.GhiChu;
+                existingRecord.NgayCong = chamCongRequest.NgayCong;
+                existingRecord.GhiChu = chamCongRequest.NgayCong == 0.5 ? chamCongRequest.GhiChu : null;//ghi chú nếu là 0.5 ngày(nghỉ có phép)
             }
             else
             {
-                // Thêm bản ghi mới
+                if (chamCongRequest.NgayCong != 0.5)
+                {
+                    chamCongRequest.GhiChu = null;
+                }
                 _context.ChamCongs.Add(chamCongRequest);
             }
 
