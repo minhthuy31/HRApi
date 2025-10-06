@@ -145,6 +145,7 @@ public class AuthController : ControllerBase
     {
         var emailClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
         var idClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        var maPhongBanClaim = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
         var roleClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
         var nhanVien = _db.NhanViens.FirstOrDefault(nv => nv.Email == emailClaim);
         var authHeader = Request.Headers["Authorization"].ToString();
@@ -156,6 +157,7 @@ public class AuthController : ControllerBase
             Email = emailClaim ?? "",
             MaNhanVien = idClaim ?? "",
             HoTen = nhanVien?.HoTen ?? "",
+            MaPhongBan = maPhongBanClaim ?? "",
             Role = roleClaim ?? ""
         });
     }

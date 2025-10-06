@@ -1,10 +1,13 @@
 ﻿using HRApi.Data;
 using HRApi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace HRApi.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class ChamCongController : ControllerBase
@@ -39,6 +42,41 @@ namespace HRApi.Controllers
 
             return Ok(chamCongData);
         }
+        [HttpGet("{maNhanVien}")]
+        public async Task<IActionResult> GetChamCongNhanVien(string maNhanVien, [FromQuery] int year, [FromQuery] int month)
+        {
+            // Bảo mật: Nhân viên chỉ có thể xem công của chính mình
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (currentUserRole == "Nhân viên" && currentUserId != maNhanVien)
+            {
+                return Forbid("Bạn không có quyền xem bảng công của người khác.");
+            }
+
+            if (year < 1 || month < 1 || month > 12)
+                return BadRequest("Năm hoặc tháng không hợp lệ.");
+
+            var startDate = new DateTime(year, month, 1);
+            var endDate = startDate.AddMonths(1);
+
+            var chamCongData = await _context.ChamCongs
+                .Where(c => c.MaNhanVien == maNhanVien &&
+                            c.NgayChamCong >= startDate &&
+                            c.NgayChamCong < endDate)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.MaNhanVien,
+                    NgayChamCong = c.NgayChamCong.Date.ToString("yyyy-MM-dd"),
+                    c.NgayCong,
+                    c.GhiChu
+                })
+                .ToListAsync();
+
+            return Ok(chamCongData);
+        }
+
 
         // POST: api/ChamCong/upsert
         [HttpPost("upsert")]
