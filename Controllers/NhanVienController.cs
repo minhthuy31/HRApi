@@ -43,6 +43,11 @@ namespace HRApi.Controllers
                     return Ok(new List<NhanVienDetailDto>());
                 }
             }
+            // Nếu là nhân viên, không cho phép truy cập vào danh sách này
+            if (currentUserRole == "Nhân viên")
+            {
+                return Forbid("Bạn không có quyền truy cập vào tài nguyên này.");
+            }
             if (!string.IsNullOrEmpty(maPhongBan))
             {
                 query = query.Where(x => x.MaPhongBan == maPhongBan);

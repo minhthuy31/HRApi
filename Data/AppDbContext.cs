@@ -16,6 +16,7 @@ namespace HRApi.Data
         public DbSet<TrinhDoHocVan> TrinhDoHocVans { get; set; }
         public DbSet<ChamCong> ChamCongs { get; set; }
         public DbSet<UserRole> UserRoles { get; set; }
+        public DbSet<DonNghiPhep> DonNghiPheps { get; set; }
 
     }
 }

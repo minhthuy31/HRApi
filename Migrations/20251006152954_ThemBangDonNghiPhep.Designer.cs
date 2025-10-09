@@ -4,6 +4,7 @@ using HRApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251006152954_ThemBangDonNghiPhep")]
+    partial class ThemBangDonNghiPhep
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -91,21 +94,23 @@ namespace HRApi.Migrations
 
                     b.Property<string>("MaNhanVien")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("NgayGuiDon")
+                    b.Property<DateTime>("NgayGui")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime>("NgayNghi")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("NhanVienMaNhanVien")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("TrangThai")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MaNhanVien");
+                    b.HasIndex("NhanVienMaNhanVien");
 
                     b.ToTable("DonNghiPheps");
                 });
@@ -336,9 +341,7 @@ namespace HRApi.Migrations
                 {
                     b.HasOne("HRApi.Models.NhanVien", "NhanVien")
                         .WithMany()
-                        .HasForeignKey("MaNhanVien")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("NhanVienMaNhanVien");
 
                     b.Navigation("NhanVien");
                 });
