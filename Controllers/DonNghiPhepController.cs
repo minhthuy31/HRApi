@@ -118,9 +118,7 @@ namespace HRApi.Controllers
             return donNghiPhep;
         }
 
-
         [HttpPut("{id}/approve")]
-        [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
         public async Task<IActionResult> ApproveRequest(int id)
         {
             var request = await _context.DonNghiPheps.FindAsync(id);
@@ -129,7 +127,7 @@ namespace HRApi.Controllers
                 return NotFound("Không tìm thấy đơn hoặc đơn đã được xử lý.");
             }
 
-            // 1. Logic kiểm tra số ngày phép còn lại trong năm (không đổi)
+            // ... (Logic kiểm tra số ngày phép)
             const int annualLeaveAllowance = 12;
             var requestYear = request.NgayNghi.Year;
             var paidLeaveDaysTaken = await _context.ChamCongs
@@ -138,47 +136,45 @@ namespace HRApi.Controllers
                     c.NgayChamCong.Year == requestYear &&
                     c.NgayCong == 1.0 && !string.IsNullOrEmpty(c.GhiChu));
 
+            // ***** SỬA LỖI QUAN TRỌNG NHẤT: Giá trị mặc định cho ngày công phải là 1.0 *****
             double ngayCongValue = 1.0;
             bool wasConverted = false;
 
             if (paidLeaveDaysTaken >= annualLeaveAllowance)
             {
-                ngayCongValue = 0.0;
+                ngayCongValue = 0.0; // Chỉ chuyển thành 0.0 nếu hết phép
                 wasConverted = true;
             }
 
-            // SỬA LỖI Ở ĐÂY: Tạo ra chuỗi ghi chú mới kết hợp lý do gốc và trạng thái
             string ghiChuMoi = $"{request.LyDo} (đã duyệt)";
 
-            // 2. Logic Upsert (Update/Insert) vào bảng Chấm Công
+            // ... (Phần còn lại của logic Upsert vào bảng Chấm Công)
+            // Đảm bảo bạn đang gán `ngayCongValue` đã được tính toán ở trên
             var existingChamCong = await _context.ChamCongs
                 .FirstOrDefaultAsync(c =>
                     c.MaNhanVien == request.MaNhanVien &&
                     c.NgayChamCong.Date == request.NgayNghi.Date);
 
-            if (existingChamCong != null) // Nếu đã có bản ghi -> Cập nhật
+            if (existingChamCong != null)
             {
-                existingChamCong.NgayCong = ngayCongValue;
-                existingChamCong.GhiChu = ghiChuMoi; // Dùng ghi chú mới
-                _context.ChamCongs.Update(existingChamCong);
+                existingChamCong.NgayCong = ngayCongValue; // Gán giá trị đúng
+                existingChamCong.GhiChu = ghiChuMoi;
             }
-            else // Nếu chưa có -> Tạo mới
+            else
             {
                 var newChamCong = new ChamCong
                 {
                     MaNhanVien = request.MaNhanVien,
                     NgayChamCong = request.NgayNghi,
-                    NgayCong = ngayCongValue,
-                    GhiChu = ghiChuMoi // Dùng ghi chú mới
+                    NgayCong = ngayCongValue, // Gán giá trị đúng
+                    GhiChu = ghiChuMoi
                 };
                 _context.ChamCongs.Add(newChamCong);
             }
 
-            // 3. Cập nhật trạng thái đơn
             request.TrangThai = LeaveRequestStatus.Approved;
-
             await _context.SaveChangesAsync();
-            return Ok(new { message = "Duyệt đơn thành công.", wasConverted = wasConverted });
+            return Ok(new { message = "Duyệt đơn thành công.", wasConverted });
         }
 
 

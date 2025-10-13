@@ -123,7 +123,7 @@ namespace HRApi.Controllers
                 MaNhanVien = maNhanVien,
                 DiLamDu = chamCongDataForMonth.Count(c => c.NgayCong == 1.0 && string.IsNullOrEmpty(c.GhiChu)),
                 NghiCoPhep = chamCongDataForMonth.Count(c => c.NgayCong == 1.0 && !string.IsNullOrEmpty(c.GhiChu)),
-                LamNuaNgay = chamCongDataForMonth.Count(c => c.NgayCong == -0.5),
+                LamNuaNgay = chamCongDataForMonth.Count(c => c.NgayCong == 0.5),
                 NghiKhongPhep = chamCongDataForMonth.Count(c => c.NgayCong == 0.0),
                 TongCong = chamCongDataForMonth.Sum(c => c.NgayCong),
                 RemainingLeaveDays = 12 - paidLeaveDaysTakenThisYear
