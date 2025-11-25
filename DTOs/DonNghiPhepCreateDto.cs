@@ -4,12 +4,14 @@ namespace HRApi.DTOs
 {
     public class DonNghiPhepCreateDto
     {
-        [Required(ErrorMessage = "Mã nhân viên là bắt buộc.")]
-        public string MaNhanVien { get; set; }
-
-        [Required(ErrorMessage = "Ngày nghỉ là bắt buộc.")]
-        public DateTime NgayNghi { get; set; }
-
-        public string? LyDo { get; set; }
+        [Required]
+        public DateTime NgayBatDau { get; set; }
+        [Required]
+        public DateTime NgayKetThuc { get; set; }
+        [Required]
+        public double SoNgayNghi { get; set; }
+        [Required]
+        public string LyDo { get; set; }
+        public IFormFile? File { get; set; }
     }
 }

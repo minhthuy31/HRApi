@@ -4,6 +4,7 @@ using HRApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251014114633_BangLuong")]
+    partial class BangLuong
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,29 +24,6 @@ namespace HRApi.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("HRApi.Models.ActiveQRToken", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsUsed")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ActiveQRTokens");
-                });
 
             modelBuilder.Entity("HRApi.Models.BangLuong", b =>
                 {
@@ -91,12 +71,9 @@ namespace HRApi.Migrations
                     b.Property<string>("GhiChu")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("GioCheckOut")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("MaNhanVien")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("NgayChamCong")
                         .HasColumnType("datetime2");
@@ -105,8 +82,6 @@ namespace HRApi.Migrations
                         .HasColumnType("float");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("MaNhanVien");
 
                     b.ToTable("ChamCongs");
                 });
@@ -150,27 +125,17 @@ namespace HRApi.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("LyDo")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("MaNhanVien")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<DateTime>("NgayBatDau")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime>("NgayGuiDon")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("NgayKetThuc")
+                    b.Property<DateTime>("NgayNghi")
                         .HasColumnType("datetime2");
-
-                    b.Property<double>("SoNgayNghi")
-                        .HasColumnType("float");
-
-                    b.Property<string>("TepDinhKem")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TrangThai")
                         .IsRequired()
@@ -403,17 +368,6 @@ namespace HRApi.Migrations
                     b.HasKey("RoleId");
 
                     b.ToTable("UserRoles");
-                });
-
-            modelBuilder.Entity("HRApi.Models.ChamCong", b =>
-                {
-                    b.HasOne("HRApi.Models.NhanVien", "NhanVien")
-                        .WithMany()
-                        .HasForeignKey("MaNhanVien")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("NhanVien");
                 });
 
             modelBuilder.Entity("HRApi.Models.DonNghiPhep", b =>

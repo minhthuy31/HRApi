@@ -12,15 +12,25 @@ namespace HRApi.Models
         public string MaNhanVien { get; set; }
 
         [ForeignKey("MaNhanVien")]
-        public NhanVien? NhanVien { get; set; }
+        public NhanVien NhanVien { get; set; }
 
-        public DateTime NgayNghi { get; set; }
+        [Required]
+        public DateTime NgayBatDau { get; set; }
 
-        // THÊM THUỘC TÍNH NÀY VÀO
-        public DateTime NgayGuiDon { get; set; }
+        [Required]
+        public DateTime NgayKetThuc { get; set; }
 
-        public string? LyDo { get; set; }
+        [Required]
+        public double SoNgayNghi { get; set; }
 
-        public string TrangThai { get; set; }
+        [Required]
+        public string LyDo { get; set; }
+
+        public string? TepDinhKem { get; set; }
+
+        [Required]
+        public string TrangThai { get; set; } = "Chờ duyệt";
+
+        public DateTime NgayGuiDon { get; set; } = DateTime.Now;
     }
 }
