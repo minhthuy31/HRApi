@@ -14,9 +14,6 @@ var configuration = builder.Configuration;
 // Thêm dịch vụ Controllers
 builder.Services.AddControllers();
 
-// ======================================================================
-// === BẮT ĐẦU CẤU HÌNH XÁC THỰC JWT (Giữ nguyên của bạn) ===
-// ======================================================================
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -37,18 +34,14 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// ======================================================================
-// === KẾT NỐI DATABASE VÀ CÁC DỊCH VỤ ===
-// ======================================================================
 
 // Kết nối SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// *** BẮT ĐẦU THÊM MỚI: Đăng ký EmailService và TokenService ***
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
-// *** KẾT THÚC THÊM MỚI ***
+
 
 // Cấu hình CORS (Giữ nguyên của bạn)
 builder.Services.AddCors(options =>

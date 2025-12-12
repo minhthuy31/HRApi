@@ -4,6 +4,7 @@ using HRApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251202081428_upbangl")]
+    partial class upbangl
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -53,39 +56,15 @@ namespace HRApi.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("DaChot")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("GhiChu")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("KhauTruBHTN")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("KhauTruBHXH")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("KhauTruBHYT")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("KhoanTruKhac")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("LuongChinh")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal>("LuongCoBan")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("LuongDongBaoHiem")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("LuongOT")
+                    b.Property<decimal>("LuongThucNhan")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("MaNhanVien")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Nam")
                         .HasColumnType("int");
@@ -96,27 +75,10 @@ namespace HRApi.Migrations
                     b.Property<int>("Thang")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("ThucLanh")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("ThueTNCN")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<double>("TongGioOT")
-                        .HasColumnType("float");
-
                     b.Property<double>("TongNgayCong")
                         .HasColumnType("float");
 
-                    b.Property<decimal>("TongPhuCap")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TongThuNhap")
-                        .HasColumnType("decimal(18,2)");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("MaNhanVien");
 
                     b.ToTable("BangLuongs");
                 });
@@ -129,21 +91,11 @@ namespace HRApi.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("DiMuon")
-                        .HasColumnType("bit");
-
                     b.Property<string>("GhiChu")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("GioCheckIn")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime?>("GioCheckOut")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("LoaiNgayCong")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("MaNhanVien")
                         .IsRequired()
@@ -154,15 +106,6 @@ namespace HRApi.Migrations
 
                     b.Property<double>("NgayCong")
                         .HasColumnType("float");
-
-                    b.Property<double>("SoGioLamViec")
-                        .HasColumnType("float");
-
-                    b.Property<double>("SoGioOT")
-                        .HasColumnType("float");
-
-                    b.Property<bool>("VeSom")
-                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -179,19 +122,11 @@ namespace HRApi.Migrations
                     b.Property<double?>("HSPC")
                         .HasColumnType("float");
 
-                    b.Property<string>("MoTaCongViec")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("RoleId")
-                        .HasColumnType("int");
-
                     b.Property<string>("TenChucVu")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("MaChucVuNV");
-
-                    b.HasIndex("RoleId");
 
                     b.ToTable("ChucVuNhanViens");
                 });
@@ -265,33 +200,15 @@ namespace HRApi.Migrations
                     b.Property<decimal>("LuongCoBan")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("LuongDongBaoHiem")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("MaNhanVien")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<DateTime?>("NgayHetHan")
+                    b.Property<DateTime?>("NgayBatDau")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("NgayHieuLuc")
+                    b.Property<DateTime?>("NgayKetThuc")
                         .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("NgayKy")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("PhuCapAnTrua")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("PhuCapKhac")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("PhuCapTrachNhiem")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int?>("ThoiHanHopDong")
-                        .HasColumnType("int");
 
                     b.Property<bool>("TrangThai")
                         .HasColumnType("bit");
@@ -311,13 +228,7 @@ namespace HRApi.Migrations
                     b.Property<string>("CCCD")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ChuyenNganhChiTiet")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("DanToc")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DiaChiKhanCap")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("DiaChiTamTru")
@@ -332,14 +243,10 @@ namespace HRApi.Migrations
                     b.Property<int?>("GioiTinh")
                         .HasColumnType("int");
 
-                    b.Property<string>("HeDaoTao")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("HinhAnh")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("HoTen")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("LoaiNhanVien")
@@ -354,9 +261,6 @@ namespace HRApi.Migrations
                     b.Property<string>("MaPhongBan")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("MaQuanLyTrucTiep")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<string>("MaTrinhDoHocVan")
                         .HasColumnType("nvarchar(450)");
 
@@ -367,58 +271,13 @@ namespace HRApi.Migrations
                     b.Property<DateTime?>("NgayCapCCCD")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("NgayCapHoChieu")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("NgayHetHanCCCD")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("NgayHetHanHoChieu")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("NgayNghiViec")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime?>("NgaySinh")
                         .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("NgayVaoLam")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("NguoiLienHeKhanCap")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("NoiCapCCCD")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("NoiCapHoChieu")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("NoiDKKCB")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("NoiDaoTao")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("NoiSinh")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PhuongXaThuongTru")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("QuanHeKhanCap")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("QuanHuyenThuongTru")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("QueQuan")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("QuocGiaThuongTru")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("QuocTich")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ResetCode")
@@ -430,34 +289,13 @@ namespace HRApi.Migrations
                     b.Property<int?>("RoleId")
                         .HasColumnType("int");
 
-                    b.Property<string>("SdtKhanCap")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SoBHXH")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SoBHYT")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SoHoChieu")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("SoTaiKhoanNH")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TenNganHang")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("TenTaiKhoanNH")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TinhThanhThuongTru")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("TinhTrangHonNhan")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TonGiao")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("TrangThai")
@@ -473,8 +311,6 @@ namespace HRApi.Migrations
                     b.HasIndex("MaChuyenNganh");
 
                     b.HasIndex("MaPhongBan");
-
-                    b.HasIndex("MaQuanLyTrucTiep");
 
                     b.HasIndex("MaTrinhDoHocVan");
 
@@ -513,9 +349,6 @@ namespace HRApi.Migrations
 
                     b.Property<double?>("HeSoBac")
                         .HasColumnType("float");
-
-                    b.Property<string>("MoTa")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TenTrinhDo")
                         .IsRequired()
@@ -581,17 +414,6 @@ namespace HRApi.Migrations
                     b.ToTable("UserRoles");
                 });
 
-            modelBuilder.Entity("HRApi.Models.BangLuong", b =>
-                {
-                    b.HasOne("HRApi.Models.NhanVien", "NhanVien")
-                        .WithMany()
-                        .HasForeignKey("MaNhanVien")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("NhanVien");
-                });
-
             modelBuilder.Entity("HRApi.Models.ChamCong", b =>
                 {
                     b.HasOne("HRApi.Models.NhanVien", "NhanVien")
@@ -601,15 +423,6 @@ namespace HRApi.Migrations
                         .IsRequired();
 
                     b.Navigation("NhanVien");
-                });
-
-            modelBuilder.Entity("HRApi.Models.ChucVuNhanVien", b =>
-                {
-                    b.HasOne("HRApi.Models.UserRole", "UserRole")
-                        .WithMany("ChucVuNhanViens")
-                        .HasForeignKey("RoleId");
-
-                    b.Navigation("UserRole");
                 });
 
             modelBuilder.Entity("HRApi.Models.DonNghiPhep", b =>
@@ -626,7 +439,7 @@ namespace HRApi.Migrations
             modelBuilder.Entity("HRApi.Models.HopDong", b =>
                 {
                     b.HasOne("HRApi.Models.NhanVien", "NhanVien")
-                        .WithMany("HopDongs")
+                        .WithMany()
                         .HasForeignKey("MaNhanVien")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -648,10 +461,6 @@ namespace HRApi.Migrations
                         .WithMany("NhanViens")
                         .HasForeignKey("MaPhongBan");
 
-                    b.HasOne("HRApi.Models.NhanVien", "QuanLyTrucTiep")
-                        .WithMany()
-                        .HasForeignKey("MaQuanLyTrucTiep");
-
                     b.HasOne("HRApi.Models.TrinhDoHocVan", "TrinhDoHocVan")
                         .WithMany("NhanViens")
                         .HasForeignKey("MaTrinhDoHocVan");
@@ -665,8 +474,6 @@ namespace HRApi.Migrations
                     b.Navigation("ChuyenNganh");
 
                     b.Navigation("PhongBan");
-
-                    b.Navigation("QuanLyTrucTiep");
 
                     b.Navigation("TrinhDoHocVan");
 
@@ -683,11 +490,6 @@ namespace HRApi.Migrations
                     b.Navigation("NhanViens");
                 });
 
-            modelBuilder.Entity("HRApi.Models.NhanVien", b =>
-                {
-                    b.Navigation("HopDongs");
-                });
-
             modelBuilder.Entity("HRApi.Models.PhongBan", b =>
                 {
                     b.Navigation("NhanViens");
@@ -700,8 +502,6 @@ namespace HRApi.Migrations
 
             modelBuilder.Entity("HRApi.Models.UserRole", b =>
                 {
-                    b.Navigation("ChucVuNhanViens");
-
                     b.Navigation("NhanViens");
                 });
 #pragma warning restore 612, 618

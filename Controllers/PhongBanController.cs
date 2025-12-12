@@ -22,11 +22,17 @@ namespace HRApi.Controllers
             var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
 
             var query = _context.PhongBans.AsQueryable();
-            if (currentUserRole == "Trưởng phòng" || currentUserRole == "Nhân sự phòng" || currentUserRole == "Nhân viên")
+
+
+            if (currentUserRole == "Kế toán trưởng" ||
+                currentUserRole == "Giám đốc" ||
+                currentUserRole == "Tổng giám đốc")
+            {
+            }
+            else if (currentUserRole == "Trường phòng")
             {
                 if (!string.IsNullOrEmpty(currentUserMaPhongBan))
                 {
-                    // Trưởng/Nhân sự phòng chỉ thấy phòng ban của chính họ
                     query = query.Where(pb => pb.MaPhongBan == currentUserMaPhongBan);
                 }
                 else
@@ -34,14 +40,19 @@ namespace HRApi.Controllers
                     return Ok(new List<PhongBan>());
                 }
             }
+
             if (trangThai.HasValue)
             {
                 query = query.Where(pb => pb.TrangThai == trangThai.Value);
             }
+
             if (!string.IsNullOrEmpty(searchTerm))
             {
-                query = query.Where(pb => pb.TenPhongBan.Contains(searchTerm) || pb.MaPhongBan.Contains(searchTerm));
+                query = query.Where(pb =>
+                    (pb.TenPhongBan != null && pb.TenPhongBan.Contains(searchTerm)) ||
+                    (pb.MaPhongBan != null && pb.MaPhongBan.Contains(searchTerm)));
             }
+
             return await query.OrderBy(pb => pb.TenPhongBan).ToListAsync();
         }
 
@@ -49,7 +60,30 @@ namespace HRApi.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<PhongBan>> GetPhongBan(string id)
         {
-            var phongBan = await _context.PhongBans.FindAsync(id);
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
+
+            var query = _context.PhongBans.AsQueryable();
+
+            // Áp dụng logic chặn xem chi tiết phòng ban khác đối với Trưởng phòng
+            if (currentUserRole == "Trường phòng" && !string.IsNullOrEmpty(currentUserMaPhongBan))
+            {
+                if (id != currentUserMaPhongBan)
+                {
+                    return Forbid("Bạn không thể xem thông tin phòng ban khác.");
+                }
+            }
+            else if (currentUserRole != "Kế toán trưởng" &&
+                     currentUserRole != "Giám đốc" &&
+                     currentUserRole != "Tổng giám đốc" &&
+                     currentUserRole != "Trường phòng")
+            {
+                // Nhân viên bình thường cũng bị chặn xem chi tiết
+                return Forbid("Bạn không có quyền truy cập.");
+            }
+
+            var phongBan = await query.FirstOrDefaultAsync(pb => pb.MaPhongBan == id);
+
             if (phongBan == null) return NotFound("Không tìm thấy phòng ban.");
             return phongBan;
         }
@@ -58,6 +92,7 @@ namespace HRApi.Controllers
         [HttpPost]
         public async Task<ActionResult<PhongBan>> CreatePhongBan([FromBody] PhongBan phongBan)
         {
+            // Có thể thêm check quyền admin ở đây nếu cần
             if (string.IsNullOrWhiteSpace(phongBan.TenPhongBan))
             {
                 return BadRequest("Tên phòng ban là bắt buộc.");

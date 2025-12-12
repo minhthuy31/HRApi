@@ -5,10 +5,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace HRApi.Controllers
 {
-    // Class hằng số trạng thái (Giữ nguyên)
     public static class LeaveRequestStatus
     {
         public const string Pending = "Chờ duyệt";
@@ -28,6 +29,17 @@ namespace HRApi.Controllers
         {
             _context = context;
             _env = env;
+        }
+
+        // --- HÀM HỖ TRỢ: XÓA DẤU TIẾNG VIỆT ---
+        private string ConvertToUnSign(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return "";
+            input = input.Trim().ToLower();
+            Regex regex = new Regex("\\p{IsCombiningDiacriticalMarks}+");
+            string temp = input.Normalize(NormalizationForm.FormD);
+            string result = regex.Replace(temp, string.Empty).Replace('\u0111', 'd').Replace('\u0110', 'd');
+            return result;
         }
 
         // DTO MỚI: Dùng cho [FromForm]
@@ -60,11 +72,10 @@ namespace HRApi.Controllers
                 return BadRequest(new { message = "Ngày kết thúc không thể trước ngày bắt đầu." });
             }
 
-            // Kiểm tra logic số ngày phép còn lại
+            // Kiểm tra logic số ngày phép còn lại (Giữ nguyên hoặc bỏ tùy bạn, ở đây tôi giữ lại để nhắc nhở user)
             if (dto.LyDo.Contains("Nghỉ phép năm"))
             {
                 var startDateOfYear = new DateTime(DateTime.Now.Year, 1, 1);
-                // Đếm số ngày phép đã được duyệt (lấy từ bảng ChamCong)
                 var paidLeaveDaysTakenThisYear = await _context.ChamCongs
                     .CountAsync(c => c.MaNhanVien == maNhanVien &&
                                      c.NgayChamCong >= startDateOfYear && c.NgayChamCong.Year == DateTime.Now.Year &&
@@ -80,7 +91,6 @@ namespace HRApi.Controllers
 
             string? filePath = null;
 
-            // 1. Xử lý file upload
             if (dto.File != null)
             {
                 var uploadsDir = Path.Combine(_env.WebRootPath, "uploads", "donnghi");
@@ -96,7 +106,6 @@ namespace HRApi.Controllers
                 filePath = $"/uploads/donnghi/{fileName}";
             }
 
-            // 2. Tạo đối tượng DonNghiPhep
             var donNghiPhep = new DonNghiPhep
             {
                 MaNhanVien = maNhanVien,
@@ -120,50 +129,86 @@ namespace HRApi.Controllers
         [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
         public async Task<ActionResult<IEnumerable<object>>> GetAllRequests([FromQuery] string? trangThai)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
+            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
+            var roleClean = ConvertToUnSign(currentUserRole);
+
             var query = _context.DonNghiPheps.Include(d => d.NhanVien).AsQueryable();
+
+            if (roleClean == "truong phong" || roleClean == "nhan su phong")
+            {
+                if (!string.IsNullOrEmpty(currentUserMaPhongBan))
+                {
+                    query = query.Where(d => d.NhanVien.MaPhongBan == currentUserMaPhongBan);
+                }
+                else
+                {
+                    return Ok(new List<object>());
+                }
+            }
 
             if (!string.IsNullOrEmpty(trangThai))
             {
                 query = query.Where(d => d.TrangThai == trangThai);
             }
 
-            var requests = await query
-                .Select(d => new
+            // ***** CẬP NHẬT: TÍNH SỐ NGÀY PHÉP CÒN LẠI ĐỂ HIỂN THỊ *****
+            var currentYear = DateTime.Now.Year;
+
+            // Lấy danh sách đơn
+            var requestsData = await query.OrderByDescending(d => d.NgayGuiDon).ToListAsync();
+
+            // Lấy danh sách ID nhân viên cần tính
+            var empIds = requestsData.Select(r => r.MaNhanVien).Distinct().ToList();
+
+            // Tính số ngày phép đã nghỉ của từng nhân viên trong năm nay
+            var paidLeaveStats = await _context.ChamCongs
+                .Where(c => empIds.Contains(c.MaNhanVien) &&
+                            c.NgayChamCong.Year == currentYear &&
+                            c.NgayCong == 1.0 &&
+                            !string.IsNullOrEmpty(c.GhiChu) &&
+                            (c.GhiChu.Contains("Nghỉ phép") || c.GhiChu.Contains("Nghỉ có phép")))
+                .GroupBy(c => c.MaNhanVien)
+                .Select(g => new { MaNhanVien = g.Key, Taken = g.Count() })
+                .ToDictionaryAsync(x => x.MaNhanVien, x => x.Taken);
+
+            // Map lại dữ liệu trả về
+            var result = requestsData.Select(d =>
+            {
+                int taken = paidLeaveStats.ContainsKey(d.MaNhanVien) ? paidLeaveStats[d.MaNhanVien] : 0;
+                int remaining = 12 - taken; // Giả sử quỹ phép là 12
+
+                return new
                 {
                     Id = d.Id,
                     MaNhanVien = d.MaNhanVien,
                     HoTenNhanVien = d.NhanVien != null ? d.NhanVien.HoTen : "Không xác định",
-                    NgayBatDau = d.NgayBatDau,   // <-- SỬA LỖI
-                    NgayKetThuc = d.NgayKetThuc, // <-- SỬA LỖI
-                    SoNgayNghi = d.SoNgayNghi,   // <-- SỬA LỖI
+                    NgayBatDau = d.NgayBatDau,
+                    NgayKetThuc = d.NgayKetThuc,
+                    SoNgayNghi = d.SoNgayNghi,
                     NgayGuiDon = d.NgayGuiDon,
                     LyDo = d.LyDo,
-                    TepDinhKem = d.TepDinhKem, // <-- THÊM MỚI
-                    TrangThai = d.TrangThai
-                })
-                .OrderByDescending(d => d.NgayGuiDon)
-                .ToListAsync();
+                    TepDinhKem = d.TepDinhKem,
+                    TrangThai = d.TrangThai,
+                    RemainingLeaveDays = remaining // <--- TRƯỜNG MỚI
+                };
+            });
 
-            return Ok(requests);
+            return Ok(result);
         }
 
         [HttpGet("pending")]
         [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
         public async Task<ActionResult<IEnumerable<object>>> GetPendingRequests()
         {
-            // Gọi hàm GetAllRequests với filter
             return await GetAllRequests(LeaveRequestStatus.Pending);
         }
 
-        // HÀM NÀY GIỮ NGUYÊN
         [HttpGet("{id}")]
         public async Task<ActionResult<DonNghiPhep>> GetDonNghiPhepById(int id)
         {
             var donNghiPhep = await _context.DonNghiPheps.FindAsync(id);
-            if (donNghiPhep == null)
-            {
-                return NotFound();
-            }
+            if (donNghiPhep == null) return NotFound();
             return donNghiPhep;
         }
 
@@ -171,66 +216,73 @@ namespace HRApi.Controllers
         [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
         public async Task<IActionResult> ApproveRequest(int id)
         {
-            var request = await _context.DonNghiPheps.FindAsync(id);
+            var request = await _context.DonNghiPheps.Include(d => d.NhanVien).FirstOrDefaultAsync(d => d.Id == id);
+
             if (request == null || request.TrangThai != LeaveRequestStatus.Pending)
             {
                 return NotFound("Không tìm thấy đơn hoặc đơn đã được xử lý.");
             }
 
-            // Chỉ ghi vào bảng ChamCong nếu lý do là nghỉ được tính công (ví dụ)
-            if (request.LyDo.Contains("Nghỉ phép") || request.LyDo.Contains("Nghỉ ốm"))
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
+            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
+            var roleClean = ConvertToUnSign(currentUserRole);
+
+            if (roleClean == "truong phong" || roleClean == "nhan su phong")
             {
-                // Duyệt qua từng ngày trong đơn nghỉ
-                for (var date = request.NgayBatDau; date.Date <= request.NgayKetThuc.Date; date = date.AddDays(1))
+                if (request.NhanVien != null && request.NhanVien.MaPhongBan != currentUserMaPhongBan)
                 {
-                    // Bỏ qua Thứ 7 (DayOfWeek = 6) và Chủ Nhật (DayOfWeek = 0)
-                    if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
-                    {
-                        continue;
-                    }
-
-                    // Kiểm tra xem ngày này đã hết phép chưa
-                    var requestYear = date.Year;
-                    var startDateOfYear = new DateTime(requestYear, 1, 1);
-                    var paidLeaveDaysTaken = await _context.ChamCongs
-                        .CountAsync(c =>
-                            c.MaNhanVien == request.MaNhanVien &&
-                            c.NgayChamCong.Year == requestYear &&
-                            c.NgayCong == 1.0 && !string.IsNullOrEmpty(c.GhiChu) &&
-                            (c.GhiChu.Contains("Nghỉ phép") || c.GhiChu.Contains("Nghỉ có phép")));
-
-                    // Logic tính công: 12 ngày phép
-                    double ngayCongValue = (paidLeaveDaysTaken < 12) ? 1.0 : 0.0;
-                    string ghiChuMoi = (ngayCongValue == 1.0) ? request.LyDo : "Nghỉ không phép (đã hết 12 ngày phép năm)";
-
-                    // Tìm bản ghi chấm công
-                    var existingChamCong = await _context.ChamCongs
-                        .FirstOrDefaultAsync(c =>
-                            c.MaNhanVien == request.MaNhanVien &&
-                            c.NgayChamCong.Date == date.Date);
-
-                    if (existingChamCong != null)
-                    {
-                        // Nếu nhân viên lỡ check-in/out, ghi đè
-                        existingChamCong.NgayCong = ngayCongValue;
-                        existingChamCong.GhiChu = ghiChuMoi;
-                        existingChamCong.GioCheckOut = null; // Xóa giờ check-in/out
-                    }
-                    else
-                    {
-                        // Tạo mới bản ghi chấm công cho ngày này
-                        _context.ChamCongs.Add(new ChamCong
-                        {
-                            MaNhanVien = request.MaNhanVien,
-                            NgayChamCong = date.Date, // Giờ check-in là 00:00
-                            NgayCong = ngayCongValue,
-                            GhiChu = ghiChuMoi
-                        });
-                    }
+                    return Forbid("Bạn không có quyền duyệt đơn của nhân viên phòng khác.");
                 }
             }
-            // Nếu lý do là "Nghỉ việc gia đình", "Khác"... (không phải nghỉ phép), 
-            // thì không tự động tạo bản ghi chấm công (HR sẽ phải tự nhập 0.0)
+
+            // ***** CẬP NHẬT LOGIC: LUÔN TÍNH CÔNG KHI DUYỆT (BỎ CHECK LÝ DO) *****
+            // Logic: Cứ duyệt là chạy vòng lặp tính ngày
+            for (var date = request.NgayBatDau; date.Date <= request.NgayKetThuc.Date; date = date.AddDays(1))
+            {
+                // Vẫn giữ bỏ qua T7, CN (theo quy định chung)
+                if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
+                {
+                    continue;
+                }
+
+                var requestYear = date.Year;
+                var startDateOfYear = new DateTime(requestYear, 1, 1);
+
+                // Đếm số ngày phép đã dùng trong năm
+                var paidLeaveDaysTaken = await _context.ChamCongs
+                    .CountAsync(c =>
+                        c.MaNhanVien == request.MaNhanVien &&
+                        c.NgayChamCong.Year == requestYear &&
+                        c.NgayCong == 1.0 && !string.IsNullOrEmpty(c.GhiChu) &&
+                        (c.GhiChu.Contains("Nghỉ phép") || c.GhiChu.Contains("Nghỉ có phép")));
+
+                // Nếu còn phép (<12) -> Tính 1 công (Có lương)
+                // Nếu hết phép (>=12) -> Tính 0 công (Không lương)
+                double ngayCongValue = (paidLeaveDaysTaken < 12) ? 1.0 : 0.0;
+                string ghiChuMoi = (ngayCongValue == 1.0) ? $"Nghỉ có phép: {request.LyDo}" : $"Nghỉ không phép (đã hết phép năm): {request.LyDo}";
+
+                var existingChamCong = await _context.ChamCongs
+                    .FirstOrDefaultAsync(c =>
+                        c.MaNhanVien == request.MaNhanVien &&
+                        c.NgayChamCong.Date == date.Date);
+
+                if (existingChamCong != null)
+                {
+                    existingChamCong.NgayCong = ngayCongValue;
+                    existingChamCong.GhiChu = ghiChuMoi;
+                    existingChamCong.GioCheckOut = null;
+                }
+                else
+                {
+                    _context.ChamCongs.Add(new ChamCong
+                    {
+                        MaNhanVien = request.MaNhanVien,
+                        NgayChamCong = date.Date,
+                        NgayCong = ngayCongValue,
+                        GhiChu = ghiChuMoi
+                    });
+                }
+            }
 
             request.TrangThai = LeaveRequestStatus.Approved;
             await _context.SaveChangesAsync();
@@ -241,10 +293,23 @@ namespace HRApi.Controllers
         [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
         public async Task<IActionResult> RejectRequest(int id)
         {
-            var request = await _context.DonNghiPheps.FindAsync(id);
+            var request = await _context.DonNghiPheps.Include(d => d.NhanVien).FirstOrDefaultAsync(d => d.Id == id);
+
             if (request == null || request.TrangThai != LeaveRequestStatus.Pending)
             {
                 return NotFound("Không tìm thấy đơn hoặc đơn đã được xử lý.");
+            }
+
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
+            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
+            var roleClean = ConvertToUnSign(currentUserRole);
+
+            if (roleClean == "truong phong" || roleClean == "nhan su phong")
+            {
+                if (request.NhanVien != null && request.NhanVien.MaPhongBan != currentUserMaPhongBan)
+                {
+                    return Forbid("Bạn không có quyền từ chối đơn của nhân viên phòng khác.");
+                }
             }
 
             request.TrangThai = LeaveRequestStatus.Rejected;

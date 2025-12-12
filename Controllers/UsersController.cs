@@ -52,10 +52,6 @@ namespace HRApi.Controllers
         }
 
 
-        // ===============================================
-        // CÁC PHƯƠNG THỨC KHÁC GIỮ NGUYÊN
-        // ===============================================
-
         // GET: api/users
         [HttpGet]
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()

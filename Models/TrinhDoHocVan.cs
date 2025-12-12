@@ -7,9 +7,15 @@ namespace HRApi.Models
     {
         [Key]
         public string MaTrinhDoHocVan { get; set; }
-        public string TenTrinhDo { get; set; }
-        public double? HeSoBac { get; set; }
 
+        [Required]
+        public string TenTrinhDo { get; set; } // VD: Đại học, Cao đẳng...
+
+        public double? HeSoBac { get; set; } // Hệ số lương theo bằng cấp (nếu áp dụng)
+
+        public string? MoTa { get; set; }
+
+        // --- NAVIGATION ---
         [JsonIgnore]
         public virtual ICollection<NhanVien>? NhanViens { get; set; }
     }

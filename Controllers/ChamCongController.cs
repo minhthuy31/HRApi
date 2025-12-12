@@ -16,13 +16,11 @@ namespace HRApi.Controllers
         private readonly AppDbContext _context;
         public ChamCongController(AppDbContext context) { _context = context; }
 
-        // ***** DTO CHO CHECK-IN QR *****
         public class CheckInQRDto
         {
             public string QrToken { get; set; }
         }
 
-        // ***** HÀM CHECK-IN / CHECK-OUT BẰNG QR (ĐÃ CẬP NHẬT) *****
         [HttpPost("check-in-qr")]
         public async Task<IActionResult> CheckInWithQr([FromBody] CheckInQRDto dto)
         {
@@ -266,6 +264,20 @@ namespace HRApi.Controllers
             if (!DateTime.TryParse(dto.NgayChamCong, out DateTime ngayChamCongParsed))
             {
                 return BadRequest(new { message = $"Định dạng ngày không hợp lệ: {dto.NgayChamCong}. Yêu cầu 'YYYY-MM-DD'." });
+            }
+
+            // 2. Kiểm tra nhân viên có tồn tại và đang hoạt động không
+            var nhanVien = await _context.NhanViens
+                .AsNoTracking()
+                .FirstOrDefaultAsync(nv => nv.MaNhanVien == dto.MaNhanVien);
+
+            if (nhanVien == null)
+            {
+                return BadRequest(new { message = "Nhân viên không tồn tại." });
+            }
+            if (nhanVien.TrangThai == false)
+            {
+                return BadRequest(new { message = $"Nhân viên {nhanVien.HoTen} đã nghỉ việc, không thể chấm công." });
             }
 
             bool wasConverted = false;
