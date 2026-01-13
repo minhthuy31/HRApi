@@ -126,16 +126,18 @@ namespace HRApi.Controllers
 
         // GET: api/DonNghiPhep
         [HttpGet]
-        [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
+        [Authorize(Roles = "Trưởng phòng,Kế toán trưởng,Giám đốc,Tổng giám đốc")]
         public async Task<ActionResult<IEnumerable<object>>> GetAllRequests([FromQuery] string? trangThai)
         {
             var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
             var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
-            var roleClean = ConvertToUnSign(currentUserRole);
 
             var query = _context.DonNghiPheps.Include(d => d.NhanVien).AsQueryable();
 
-            if (roleClean == "truong phong" || roleClean == "nhan su phong")
+            // --- LOGIC PHÂN QUYỀN XEM ĐƠN ---
+
+            // 1. Trưởng phòng: Chỉ xem đơn của nhân viên trong phòng
+            if (currentUserRole == "Trưởng phòng")
             {
                 if (!string.IsNullOrEmpty(currentUserMaPhongBan))
                 {
@@ -143,9 +145,22 @@ namespace HRApi.Controllers
                 }
                 else
                 {
+                    // Trưởng phòng mà không có mã phòng ban (lỗi dữ liệu) -> Trả về danh sách rỗng
                     return Ok(new List<object>());
                 }
             }
+            // 2. Kế toán trưởng, Giám đốc, Tổng giám đốc: Xem Full
+            else if (currentUserRole == "Kế toán trưởng" || currentUserRole == "Giám đốc" || currentUserRole == "Tổng giám đốc")
+            {
+                // Không filter gì cả
+            }
+            // 3. Các role khác (nếu lọt qua Authorize): Chặn
+            else
+            {
+                return Forbid();
+            }
+
+            // --- HẾT LOGIC PHÂN QUYỀN ---
 
             if (!string.IsNullOrEmpty(trangThai))
             {
@@ -198,7 +213,7 @@ namespace HRApi.Controllers
         }
 
         [HttpGet("pending")]
-        [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
+        [Authorize(Roles = "Trưởng phòng,Kế toán trưởng,Giám đốc,Tổng giám đốc")]
         public async Task<ActionResult<IEnumerable<object>>> GetPendingRequests()
         {
             return await GetAllRequests(LeaveRequestStatus.Pending);
@@ -213,7 +228,7 @@ namespace HRApi.Controllers
         }
 
         [HttpPost("approve/{id}")]
-        [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
+        [Authorize(Roles = "Trưởng phòng,Kế toán trưởng,Giám đốc,Tổng giám đốc")]
         public async Task<IActionResult> ApproveRequest(int id)
         {
             var request = await _context.DonNghiPheps.Include(d => d.NhanVien).FirstOrDefaultAsync(d => d.Id == id);
@@ -225,9 +240,9 @@ namespace HRApi.Controllers
 
             var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
             var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
-            var roleClean = ConvertToUnSign(currentUserRole);
 
-            if (roleClean == "truong phong" || roleClean == "nhan su phong")
+            // Logic chặn Trưởng phòng duyệt đơn phòng khác
+            if (currentUserRole == "Trưởng phòng")
             {
                 if (request.NhanVien != null && request.NhanVien.MaPhongBan != currentUserMaPhongBan)
                 {
@@ -290,7 +305,7 @@ namespace HRApi.Controllers
         }
 
         [HttpPost("reject/{id}")]
-        [Authorize(Roles = "Nhân sự phòng,Trưởng phòng,Nhân sự tổng,Giám đốc")]
+        [Authorize(Roles = "Trưởng phòng,Kế toán trưởng,Giám đốc,Tổng giám đốc")]
         public async Task<IActionResult> RejectRequest(int id)
         {
             var request = await _context.DonNghiPheps.Include(d => d.NhanVien).FirstOrDefaultAsync(d => d.Id == id);
@@ -302,9 +317,9 @@ namespace HRApi.Controllers
 
             var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
             var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
-            var roleClean = ConvertToUnSign(currentUserRole);
 
-            if (roleClean == "truong phong" || roleClean == "nhan su phong")
+            // Logic chặn Trưởng phòng từ chối đơn phòng khác
+            if (currentUserRole == "Trưởng phòng")
             {
                 if (request.NhanVien != null && request.NhanVien.MaPhongBan != currentUserMaPhongBan)
                 {

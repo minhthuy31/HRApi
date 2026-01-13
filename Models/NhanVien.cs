@@ -81,6 +81,12 @@ namespace HRApi.Models
         public DateTime? NgayNghiViec { get; set; } // Ngày nghỉ việc (nếu có)
         public string? LoaiNhanVien { get; set; } // Full-time, Part-time, CTV...
 
+        // --- BỔ SUNG: THÔNG TIN LƯƠNG & HỢP ĐỒNG ---
+        [Column(TypeName = "decimal(18, 2)")]
+        public decimal LuongCoBan { get; set; } // Lương cơ bản hiện tại
+        public decimal LuongTroCap { get; set; } // Tổng lương trợ cấp hiện tại
+        public string? SoHopDong { get; set; }  // Số hợp đồng hiện tại
+
         // Quản lý trực tiếp (Self-referencing Foreign Key)
         public string? MaQuanLyTrucTiep { get; set; }
         [ForeignKey("MaQuanLyTrucTiep")]

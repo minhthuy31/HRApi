@@ -19,5 +19,7 @@ namespace HRApi.Data
         public DbSet<DonNghiPhep> DonNghiPheps { get; set; }
         public DbSet<BangLuong> BangLuongs { get; set; }
         public DbSet<ActiveQRToken> ActiveQRTokens { get; set; }
+        public DbSet<DangKyOT> DangKyOTs { get; set; }
+        public DbSet<DangKyCongTac> DangKyCongTacs { get; set; }
     }
 }

@@ -209,6 +209,99 @@ namespace HRApi.Migrations
                     b.ToTable("ChuyenNganhs");
                 });
 
+            modelBuilder.Entity("HRApi.Models.DangKyCongTac", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("KinhPhiDuKien")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("LyDoTamUng")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MaNhanVien")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("MucDich")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("NgayBatDau")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("NgayGuiDon")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("NgayKetThuc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NoiCongTac")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PhuongTien")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("SoTienTamUng")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("TrangThai")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaNhanVien");
+
+                    b.ToTable("DangKyCongTacs");
+                });
+
+            modelBuilder.Entity("HRApi.Models.DangKyOT", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<TimeSpan>("GioBatDau")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan>("GioKetThuc")
+                        .HasColumnType("time");
+
+                    b.Property<string>("LyDo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MaNhanVien")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("NgayGuiDon")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("NgayLamThem")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("SoGio")
+                        .HasColumnType("float");
+
+                    b.Property<string>("TrangThai")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaNhanVien");
+
+                    b.ToTable("DangKyOTs");
+                });
+
             modelBuilder.Entity("HRApi.Models.DonNghiPhep", b =>
                 {
                     b.Property<int>("Id")
@@ -253,50 +346,43 @@ namespace HRApi.Migrations
 
             modelBuilder.Entity("HRApi.Models.HopDong", b =>
                 {
-                    b.Property<string>("MaHopDong")
+                    b.Property<string>("SoHopDong")
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("GhiChu")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("LoaiHopDong")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("LuongCoBan")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18, 2)");
 
                     b.Property<decimal>("LuongDongBaoHiem")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18, 2)");
 
                     b.Property<string>("MaNhanVien")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<DateTime?>("NgayHetHan")
+                    b.Property<DateTime>("NgayBatDau")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("NgayHieuLuc")
+                    b.Property<DateTime?>("NgayKetThuc")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime>("NgayKy")
                         .HasColumnType("datetime2");
 
-                    b.Property<decimal>("PhuCapAnTrua")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<string>("TepDinhKem")
+                        .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("PhuCapKhac")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<string>("TrangThai")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("PhuCapTrachNhiem")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int?>("ThoiHanHopDong")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("TrangThai")
-                        .HasColumnType("bit");
-
-                    b.HasKey("MaHopDong");
+                    b.HasKey("SoHopDong");
 
                     b.HasIndex("MaNhanVien");
 
@@ -344,6 +430,12 @@ namespace HRApi.Migrations
 
                     b.Property<string>("LoaiNhanVien")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("LuongCoBan")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal>("LuongTroCap")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("MaChucVuNV")
                         .HasColumnType("nvarchar(450)");
@@ -440,6 +532,9 @@ namespace HRApi.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SoHoChieu")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SoHopDong")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SoTaiKhoanNH")
@@ -610,6 +705,28 @@ namespace HRApi.Migrations
                         .HasForeignKey("RoleId");
 
                     b.Navigation("UserRole");
+                });
+
+            modelBuilder.Entity("HRApi.Models.DangKyCongTac", b =>
+                {
+                    b.HasOne("HRApi.Models.NhanVien", "NhanVien")
+                        .WithMany()
+                        .HasForeignKey("MaNhanVien")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("NhanVien");
+                });
+
+            modelBuilder.Entity("HRApi.Models.DangKyOT", b =>
+                {
+                    b.HasOne("HRApi.Models.NhanVien", "NhanVien")
+                        .WithMany()
+                        .HasForeignKey("MaNhanVien")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("NhanVien");
                 });
 
             modelBuilder.Entity("HRApi.Models.DonNghiPhep", b =>

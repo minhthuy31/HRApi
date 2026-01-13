@@ -34,34 +34,22 @@ namespace HRApi.Controllers
             var query = _context.NhanViens.AsQueryable();
 
             // --- LOGIC PHÂN QUYỀN MỚI ---
-
-            // 1. Trưởng phòng: Chỉ được xem nhân viên trong cùng phòng ban
             if (currentUserRole == "Trường phòng")
             {
                 if (!string.IsNullOrEmpty(currentUserMaPhongBan))
-                {
                     query = query.Where(nv => nv.MaPhongBan == currentUserMaPhongBan);
-                }
                 else
-                {
-                    // Trưởng phòng mà không có mã phòng ban (lỗi dữ liệu) -> Trả về danh sách rỗng
                     return Ok(new List<NhanVienDetailDto>());
-                }
             }
-            // 2. Kế toán trưởng, Giám đốc, Tổng giám đốc: Xem Full (Không filter)
             else if (currentUserRole == "Kế toán trưởng" || currentUserRole == "Giám đốc" || currentUserRole == "Tổng giám đốc")
             {
-                // Không làm gì cả, mặc định query lấy hết
+                // Full access
             }
-            // 3. Nhân viên: Chặn truy cập danh sách
             else if (currentUserRole == "Nhân viên")
             {
                 return Forbid("Bạn không có quyền truy cập vào tài nguyên này.");
             }
 
-            // --- KẾT THÚC LOGIC PHÂN QUYỀN ---
-
-            // Filtering Params (Áp dụng thêm các bộ lọc từ Client gửi lên)
             if (!string.IsNullOrEmpty(maPhongBan)) query = query.Where(x => x.MaPhongBan == maPhongBan);
             if (!string.IsNullOrEmpty(maChucVuNV)) query = query.Where(x => x.MaChucVuNV == maChucVuNV);
             if (!string.IsNullOrEmpty(maTrinhDoHocVan)) query = query.Where(x => x.MaTrinhDoHocVan == maTrinhDoHocVan);
@@ -143,7 +131,10 @@ namespace HRApi.Controllers
                     TenChucVu = nv.ChucVuNhanVien != null ? nv.ChucVuNhanVien.TenChucVu : null,
                     TenChuyenNganh = nv.ChuyenNganh != null ? nv.ChuyenNganh.TenChuyenNganh : null,
                     TenTrinhDoHocVan = nv.TrinhDoHocVan != null ? nv.TrinhDoHocVan.TenTrinhDo : null,
-                    TenRole = nv.UserRole != null ? nv.UserRole.NameRole : null
+                    TenRole = nv.UserRole != null ? nv.UserRole.NameRole : null,
+                    LuongCoBan = nv.LuongCoBan,
+                    LuongTroCap = nv.LuongTroCap,
+                    SoHopDong = nv.SoHopDong
                 })
                 .ToListAsync();
 
@@ -163,7 +154,6 @@ namespace HRApi.Controllers
             var currentUserId = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
             var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
 
-            // Logic chặn Nhân viên xem thông tin người khác
             if (currentUserRole == "Nhân viên" && currentUserId != id)
             {
                 return Forbid("Bạn không có quyền truy cập thông tin của nhân viên khác.");
@@ -171,7 +161,6 @@ namespace HRApi.Controllers
 
             var query = _context.NhanViens.AsNoTracking().AsQueryable();
 
-            // Logic chặn Trưởng phòng xem thông tin nhân viên phòng khác
             if (currentUserRole == "Trưởng phòng" && !string.IsNullOrEmpty(currentUserMaPhongBan))
             {
                 query = query.Where(nv => nv.MaPhongBan == currentUserMaPhongBan);
@@ -187,7 +176,6 @@ namespace HRApi.Controllers
                 .Where(nv => nv.MaNhanVien == id)
                 .Select(nv => new NhanVienDetailDto
                 {
-                    // Copy mapping từ GetNhanViens hoặc dùng AutoMapper để gọn hơn
                     MaNhanVien = nv.MaNhanVien,
                     HoTen = nv.HoTen,
                     TrangThai = nv.TrangThai,
@@ -239,11 +227,9 @@ namespace HRApi.Controllers
                     SoBHYT = nv.SoBHYT,
                     SoBHXH = nv.SoBHXH,
                     NoiDKKCB = nv.NoiDKKCB,
-                    TenPhongBan = nv.PhongBan != null ? nv.PhongBan.TenPhongBan : null,
-                    TenChucVu = nv.ChucVuNhanVien != null ? nv.ChucVuNhanVien.TenChucVu : null,
-                    TenChuyenNganh = nv.ChuyenNganh != null ? nv.ChuyenNganh.TenChuyenNganh : null,
-                    TenTrinhDoHocVan = nv.TrinhDoHocVan != null ? nv.TrinhDoHocVan.TenTrinhDo : null,
-                    TenRole = nv.UserRole != null ? nv.UserRole.NameRole : null
+                    LuongCoBan = nv.LuongCoBan,
+                    LuongTroCap = nv.LuongTroCap,
+                    SoHopDong = nv.SoHopDong
                 })
                 .FirstOrDefaultAsync();
 
@@ -251,20 +237,15 @@ namespace HRApi.Controllers
             return Ok(nhanVien);
         }
 
-        /// <summary>
-        /// API Lấy danh sách nhân viên để chọn làm Quản lý (Dropdown list)
-        /// Chỉ lấy những nhân viên đang hoạt động.
-        /// </summary>
         [Authorize]
         [HttpGet("managers")]
         public async Task<ActionResult<IEnumerable<QuanLySelectDto>>> GetManagers([FromQuery] string? excludeId)
         {
             var query = _context.NhanViens
                 .AsNoTracking()
-                .Where(nv => nv.TrangThai == true) // Chỉ lấy nhân viên đang làm việc
+                .Where(nv => nv.TrangThai == true)
                 .AsQueryable();
 
-            // Nếu đang sửa nhân viên A, thì A không thể là quản lý của chính mình
             if (!string.IsNullOrEmpty(excludeId))
             {
                 query = query.Where(nv => nv.MaNhanVien != excludeId);
@@ -291,7 +272,6 @@ namespace HRApi.Controllers
         [HttpPost]
         public async Task<ActionResult<NhanVien>> CreateNhanVien([FromBody] NhanVienCreateUpdateDto dto)
         {
-            // ... (Logic cũ giữ nguyên) ...
             if (dto == null) return BadRequest("Dữ liệu không hợp lệ.");
             if (string.IsNullOrEmpty(dto.MatKhau)) return BadRequest("Mật khẩu là bắt buộc.");
             if (string.IsNullOrEmpty(dto.MaChucVuNV)) return BadRequest("Chức vụ là bắt buộc để gán quyền.");
@@ -370,7 +350,10 @@ namespace HRApi.Controllers
                 TenTaiKhoanNH = dto.TenTaiKhoanNH,
                 SoBHYT = dto.SoBHYT,
                 SoBHXH = dto.SoBHXH,
-                NoiDKKCB = dto.NoiDKKCB
+                NoiDKKCB = dto.NoiDKKCB,
+                LuongCoBan = dto.LuongCoBan,
+                LuongTroCap = dto.LuongTroCap,
+                SoHopDong = dto.SoHopDong
             };
 
             _context.NhanViens.Add(newNhanVien);
@@ -382,7 +365,6 @@ namespace HRApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateNhanVien(string id, [FromBody] NhanVienCreateUpdateDto dto)
         {
-            // ... (Logic cũ giữ nguyên) ...
             var existingNhanVien = await _context.NhanViens.FindAsync(id);
             if (existingNhanVien == null) return NotFound("Không tìm thấy nhân viên.");
 
@@ -440,6 +422,9 @@ namespace HRApi.Controllers
             existingNhanVien.SoBHYT = dto.SoBHYT;
             existingNhanVien.SoBHXH = dto.SoBHXH;
             existingNhanVien.NoiDKKCB = dto.NoiDKKCB;
+            existingNhanVien.LuongCoBan = dto.LuongCoBan;
+            existingNhanVien.LuongTroCap = dto.LuongTroCap;
+            existingNhanVien.SoHopDong = dto.SoHopDong;
 
             if (!string.IsNullOrEmpty(dto.MatKhau))
             {
@@ -459,7 +444,6 @@ namespace HRApi.Controllers
         #endregion
 
         #region Other Methods
-        // ... (Giữ nguyên UploadImage, DisableNhanVien, ActivateNhanVien, ImportNhanViens) ...
         [Authorize]
         [HttpPost("UploadImage")]
         public async Task<IActionResult> UploadImage()
@@ -551,7 +535,9 @@ namespace HRApi.Controllers
                     Email = dto.Email,
                     MaChucVuNV = dto.MaChucVuNV,
                     MaPhongBan = dto.MaPhongBan,
-                    RoleId = assignedRoleId.Value
+                    RoleId = assignedRoleId.Value,
+                    LuongCoBan = dto.LuongCoBan,
+                    SoHopDong = dto.SoHopDong
                 };
                 newNhanViens.Add(newNhanVien);
             }

@@ -46,10 +46,16 @@
         public string? QuocGiaThuongTru { get; set; }
         public string? DiaChiTamTru { get; set; }
 
-        // 5. Công việc
+        // 5. Công việc & Lương (Đã cập nhật)
         public DateTime? NgayVaoLam { get; set; }
         public DateTime? NgayNghiViec { get; set; }
         public string? LoaiNhanVien { get; set; }
+
+        // --- THÊM 2 TRƯỜNG MỚI ---
+        public decimal LuongCoBan { get; set; }
+        public decimal LuongTroCap { get; set; }
+        public string? SoHopDong { get; set; }
+
         public string? MaQuanLyTrucTiep { get; set; }
         public string? TenQuanLyTrucTiep { get; set; }
 
