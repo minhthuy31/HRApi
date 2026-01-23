@@ -389,6 +389,28 @@ namespace HRApi.Migrations
                     b.ToTable("HopDongs");
                 });
 
+            modelBuilder.Entity("HRApi.Models.KhoaCong", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Nam")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Thang")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("KhoaCongs");
+                });
+
             modelBuilder.Entity("HRApi.Models.NhanVien", b =>
                 {
                     b.Property<string>("MaNhanVien")

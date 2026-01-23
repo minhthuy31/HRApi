@@ -34,20 +34,12 @@ namespace HRApi.Controllers
             var query = _context.NhanViens.AsQueryable();
 
             // --- LOGIC PHÂN QUYỀN MỚI ---
-            if (currentUserRole == "Trường phòng")
+            if (currentUserRole == "Trưởng phòng")
             {
                 if (!string.IsNullOrEmpty(currentUserMaPhongBan))
                     query = query.Where(nv => nv.MaPhongBan == currentUserMaPhongBan);
                 else
                     return Ok(new List<NhanVienDetailDto>());
-            }
-            else if (currentUserRole == "Kế toán trưởng" || currentUserRole == "Giám đốc" || currentUserRole == "Tổng giám đốc")
-            {
-                // Full access
-            }
-            else if (currentUserRole == "Nhân viên")
-            {
-                return Forbid("Bạn không có quyền truy cập vào tài nguyên này.");
             }
 
             if (!string.IsNullOrEmpty(maPhongBan)) query = query.Where(x => x.MaPhongBan == maPhongBan);
@@ -153,11 +145,6 @@ namespace HRApi.Controllers
             var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
             var currentUserId = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
             var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
-
-            if (currentUserRole == "Nhân viên" && currentUserId != id)
-            {
-                return Forbid("Bạn không có quyền truy cập thông tin của nhân viên khác.");
-            }
 
             var query = _context.NhanViens.AsNoTracking().AsQueryable();
 
@@ -272,6 +259,12 @@ namespace HRApi.Controllers
         [HttpPost]
         public async Task<ActionResult<NhanVien>> CreateNhanVien([FromBody] NhanVienCreateUpdateDto dto)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            if (currentUserRole != "Nhân sự trưởng" && currentUserRole != "Giám đốc")
+            {
+                return StatusCode(403, "Chỉ Nhân sự trưởng và Giám đốc mới có quyền thêm nhân viên.");
+            }
+
             if (dto == null) return BadRequest("Dữ liệu không hợp lệ.");
             if (string.IsNullOrEmpty(dto.MatKhau)) return BadRequest("Mật khẩu là bắt buộc.");
             if (string.IsNullOrEmpty(dto.MaChucVuNV)) return BadRequest("Chức vụ là bắt buộc để gán quyền.");
@@ -365,6 +358,11 @@ namespace HRApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateNhanVien(string id, [FromBody] NhanVienCreateUpdateDto dto)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            if (currentUserRole != "Nhân sự trưởng" && currentUserRole != "Giám đốc")
+            {
+                return StatusCode(403, "Chỉ Nhân sự trưởng và Giám đốc mới có quyền chỉnh sửa thông tin nhân viên.");
+            }
             var existingNhanVien = await _context.NhanViens.FindAsync(id);
             if (existingNhanVien == null) return NotFound("Không tìm thấy nhân viên.");
 
@@ -470,6 +468,11 @@ namespace HRApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DisableNhanVien(string id)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            if (currentUserRole != "Nhân sự trưởng" && currentUserRole != "Giám đốc")
+            {
+                return StatusCode(403, "Chỉ Nhân sự trưởng và Giám đốc mới có quyền vô hiệu hóa nhân viên.");
+            }
             var nhanVien = await _context.NhanViens.FindAsync(id);
             if (nhanVien == null) return NotFound("Không tìm thấy nhân viên.");
             nhanVien.TrangThai = false;
@@ -481,6 +484,11 @@ namespace HRApi.Controllers
         [HttpPost("{id}/activate")]
         public async Task<IActionResult> ActivateNhanVien(string id)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            if (currentUserRole != "Nhân sự trưởng" && currentUserRole != "Giám đốc")
+            {
+                return StatusCode(403, "Chỉ Nhân sự trưởng và Giám đốc mới có quyền kích hoạt lại nhân viên.");
+            }
             var nhanVien = await _context.NhanViens.FindAsync(id);
             if (nhanVien == null) return NotFound("Không tìm thấy nhân viên.");
             nhanVien.TrangThai = true;
@@ -492,6 +500,11 @@ namespace HRApi.Controllers
         [HttpPost("import")]
         public async Task<IActionResult> ImportNhanViens([FromBody] List<NhanVienCreateUpdateDto> dtos)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            if (currentUserRole != "Nhân sự trưởng" && currentUserRole != "Giám đốc")
+            {
+                return StatusCode(403, "Chỉ Nhân sự trưởng và Giam đốc mới có quyền import dữ liệu.");
+            }
             if (dtos == null || !dtos.Any()) return BadRequest("Không có dữ liệu.");
 
             var allMaNVs = await _context.NhanViens.Select(nv => nv.MaNhanVien).ToListAsync();

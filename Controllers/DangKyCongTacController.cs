@@ -4,8 +4,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace HRApi.Controllers
 {
@@ -24,22 +22,12 @@ namespace HRApi.Controllers
             public string NoiCongTac { get; set; }
             public string MucDich { get; set; }
             public string? PhuongTien { get; set; }
-
-            // Thêm fields kinh phí
             public decimal KinhPhiDuKien { get; set; }
             public decimal SoTienTamUng { get; set; }
             public string? LyDoTamUng { get; set; }
         }
 
-        private string ConvertToUnSign(string input)
-        {
-            if (string.IsNullOrEmpty(input)) return "";
-            input = input.Trim().ToLower();
-            Regex regex = new Regex("\\p{IsCombiningDiacriticalMarks}+");
-            string temp = input.Normalize(NormalizationForm.FormD);
-            return regex.Replace(temp, string.Empty).Replace('\u0111', 'd').Replace('\u0110', 'd');
-        }
-
+        // --- TẠO ĐƠN (Giữ nguyên) ---
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateCongTacDto dto)
         {
@@ -57,11 +45,9 @@ namespace HRApi.Controllers
                 NoiCongTac = dto.NoiCongTac,
                 MucDich = dto.MucDich,
                 PhuongTien = dto.PhuongTien,
-                // Map kinh phí
                 KinhPhiDuKien = dto.KinhPhiDuKien,
                 SoTienTamUng = dto.SoTienTamUng,
                 LyDoTamUng = dto.LyDoTamUng,
-
                 TrangThai = "Chờ duyệt",
                 NgayGuiDon = DateTime.Now
             };
@@ -71,27 +57,52 @@ namespace HRApi.Controllers
             return Ok(new { message = "Đăng ký công tác thành công" });
         }
 
+        // --- LẤY DANH SÁCH (Cập nhật Filter & Search & Phân quyền) ---
         [HttpGet]
-        [Authorize(Roles = "Trưởng phòng,Kế toán trưởng,Giám đốc,Tổng giám đốc")]
-        public async Task<ActionResult<IEnumerable<object>>> GetAllRequests([FromQuery] string? trangThai)
+        [Authorize(Roles = "Trưởng phòng,Kế toán trưởng,Giám đốc,Nhân sự trưởng")]
+        public async Task<ActionResult<IEnumerable<object>>> GetAllRequests(
+            [FromQuery] string? trangThai,
+            [FromQuery] string? maPhongBan,
+            [FromQuery] string? searchTerm)
         {
             var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
             var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
-            var roleClean = ConvertToUnSign(currentUserRole);
 
-            var query = _context.DangKyCongTacs.Include(d => d.NhanVien).AsQueryable();
+            var query = _context.DangKyCongTacs
+                .Include(d => d.NhanVien)
+                .ThenInclude(nv => nv.PhongBan)
+                .AsQueryable();
 
-            if (roleClean == "truong phong")
+            // 1. PHÂN QUYỀN DATA
+            if (currentUserRole == "Trưởng phòng")
             {
                 if (!string.IsNullOrEmpty(currentUserMaPhongBan))
+                {
                     query = query.Where(d => d.NhanVien.MaPhongBan == currentUserMaPhongBan);
+                }
                 else
+                {
                     return Ok(new List<object>());
+                }
             }
+            // Admin, HR, Kế toán: Xem hết
 
+            // 2. BỘ LỌC
             if (!string.IsNullOrEmpty(trangThai))
             {
                 query = query.Where(d => d.TrangThai == trangThai);
+            }
+
+            if (!string.IsNullOrEmpty(maPhongBan))
+            {
+                query = query.Where(d => d.NhanVien.MaPhongBan == maPhongBan);
+            }
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                var lowerSearch = searchTerm.ToLower();
+                query = query.Where(d => d.NhanVien.HoTen.ToLower().Contains(lowerSearch) ||
+                                         d.MaNhanVien.ToLower().Contains(lowerSearch));
             }
 
             var result = await query.OrderByDescending(d => d.NgayGuiDon)
@@ -100,6 +111,7 @@ namespace HRApi.Controllers
                     d.Id,
                     d.MaNhanVien,
                     HoTenNhanVien = d.NhanVien != null ? d.NhanVien.HoTen : "N/A",
+                    TenPhongBan = d.NhanVien != null && d.NhanVien.PhongBan != null ? d.NhanVien.PhongBan.TenPhongBan : "N/A",
                     d.NgayBatDau,
                     d.NgayKetThuc,
                     d.NoiCongTac,
@@ -107,7 +119,6 @@ namespace HRApi.Controllers
                     d.PhuongTien,
                     d.TrangThai,
                     d.NgayGuiDon,
-                    // Trả về thông tin kinh phí
                     d.KinhPhiDuKien,
                     d.SoTienTamUng,
                     d.LyDoTamUng
@@ -116,12 +127,23 @@ namespace HRApi.Controllers
             return Ok(result);
         }
 
+        // --- DUYỆT ĐƠN (Chỉ Trưởng phòng & Giám đốc) ---
         [HttpPost("approve/{id}")]
-        [Authorize(Roles = "Trưởng phòng,Kế toán trưởng,Giám đốc,Tổng giám đốc")]
+        [Authorize(Roles = "Trưởng phòng,Giám đốc")] // Bỏ Kế toán, HR
         public async Task<IActionResult> Approve(int id)
         {
-            var req = await _context.DangKyCongTacs.FindAsync(id);
+            var req = await _context.DangKyCongTacs.Include(d => d.NhanVien).FirstOrDefaultAsync(d => d.Id == id);
             if (req == null || req.TrangThai != "Chờ duyệt") return NotFound("Đơn không hợp lệ.");
+
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
+            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
+
+            // Check quyền Trưởng phòng
+            if (currentUserRole == "Trưởng phòng")
+            {
+                if (req.NhanVien?.MaPhongBan != currentUserMaPhongBan)
+                    return Forbid("Không được duyệt đơn phòng khác.");
+            }
 
             req.TrangThai = "Đã duyệt";
 
@@ -158,12 +180,20 @@ namespace HRApi.Controllers
             return Ok(new { message = "Đã duyệt đơn công tác." });
         }
 
+        // --- TỪ CHỐI ĐƠN (Chỉ Trưởng phòng & Giám đốc) ---
         [HttpPost("reject/{id}")]
-        [Authorize(Roles = "Trưởng phòng,Kế toán trưởng,Giám đốc,Tổng giám đốc")]
+        [Authorize(Roles = "Trưởng phòng,Giám đốc")] // Bỏ Kế toán, HR
         public async Task<IActionResult> Reject(int id)
         {
-            var req = await _context.DangKyCongTacs.FindAsync(id);
-            if (req == null) return NotFound();
+            var req = await _context.DangKyCongTacs.Include(d => d.NhanVien).FirstOrDefaultAsync(d => d.Id == id);
+            if (req == null || req.TrangThai != "Chờ duyệt") return NotFound();
+
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
+            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
+
+            if (currentUserRole == "Trưởng phòng" && req.NhanVien?.MaPhongBan != currentUserMaPhongBan)
+                return Forbid();
+
             req.TrangThai = "Từ chối";
             await _context.SaveChangesAsync();
             return Ok(new { message = "Đã từ chối đơn." });
