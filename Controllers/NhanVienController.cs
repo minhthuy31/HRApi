@@ -160,6 +160,7 @@ namespace HRApi.Controllers
                 .Include(nv => nv.TrinhDoHocVan)
                 .Include(nv => nv.QuanLyTrucTiep)
                 .Include(nv => nv.UserRole)
+                .Include(nv => nv.HopDongs)
                 .Where(nv => nv.MaNhanVien == id)
                 .Select(nv => new NhanVienDetailDto
                 {
@@ -216,7 +217,20 @@ namespace HRApi.Controllers
                     NoiDKKCB = nv.NoiDKKCB,
                     LuongCoBan = nv.LuongCoBan,
                     LuongTroCap = nv.LuongTroCap,
-                    SoHopDong = nv.SoHopDong
+                    SoHopDong = nv.SoHopDong,
+                    ChuKy = nv.ChuKy,
+                    // Map danh sách Hợp đồng
+                    HopDongs = nv.HopDongs.Select(hd => new HopDongDetailDto
+                    {
+                        SoHopDong = hd.SoHopDong,
+                        LoaiHopDong = hd.LoaiHopDong,
+                        NgayBatDau = hd.NgayBatDau,
+                        NgayKetThuc = hd.NgayKetThuc,
+                        TrangThai = hd.TrangThai,
+                        LuongCoBan = hd.LuongCoBan,
+                        TepDinhKem = hd.TepDinhKem,
+                        GhiChu = hd.GhiChu
+                    }).OrderByDescending(hd => hd.NgayBatDau).ToList() // Sắp xếp hợp đồng mới nhất lên đầu
                 })
                 .FirstOrDefaultAsync();
 
@@ -567,6 +581,27 @@ namespace HRApi.Controllers
             {
                 return StatusCode(500, $"Lỗi: {ex.Message}");
             }
+        }
+
+        // DTO để nhận dữ liệu từ Frontend
+        public class SignatureDto
+        {
+            public string MaNhanVien { get; set; }
+            public string Base64Image { get; set; } // Chuỗi dạng "data:image/png;base64,iVBORw0KGgo..."
+        }
+
+        // API: Lưu chữ ký Base64
+        [HttpPost("save-signature-base64")]
+        public async Task<IActionResult> SaveSignatureBase64([FromBody] SignatureDto dto)
+        {
+            var nv = await _context.NhanViens.FindAsync(dto.MaNhanVien);
+            if (nv == null) return NotFound(new { message = "Nhân viên không tồn tại" });
+
+            // Lưu trực tiếp chuỗi Base64 vào DB
+            nv.ChuKy = dto.Base64Image;
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Lưu chữ ký thành công" });
         }
         #endregion
     }

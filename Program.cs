@@ -14,6 +14,21 @@ var configuration = builder.Configuration;
 // Thêm dịch vụ Controllers
 builder.Services.AddControllers();
 
+builder.Services.AddControllers();
+    //.AddJsonOptions(options =>
+    //{
+    //    // Giúp xử lý mảng JSON mượt mà hơn và tránh lỗi vòng lặp nếu có
+    //    options.JsonSerializerOptions.PropertyNamingPolicy = null;
+    //});
+
+// Cấu hình giới hạn kích thước gửi lên (tránh lỗi 413 Payload Too Large)
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartBodyLengthLimit = int.MaxValue;
+    options.MemoryBufferThreshold = int.MaxValue;
+});
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -49,7 +64,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowReactApp",
         policy => policy.WithOrigins("http://localhost:3000")
                           .AllowAnyMethod()
-                          .AllowAnyHeader());
+                          .AllowAnyHeader()
+                          .AllowCredentials()); 
 });
 
 builder.Services.AddEndpointsApiExplorer();

@@ -86,5 +86,9 @@
         public string? TenChuyenNganh { get; set; }
         public string? TenTrinhDoHocVan { get; set; }
         public string? TenRole { get; set; }
+        public string? ChuKy { get; set; }
+
+        // Thêm danh sách lịch sử hợp đồng
+        public List<HopDongDetailDto>? HopDongs { get; set; }
     }
 }

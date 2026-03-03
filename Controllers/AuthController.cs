@@ -96,7 +96,6 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Gửi mã xác nhận quên mật khẩu(gửi về email)
     /// </summary>
-    [AllowAnonymous]
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req)
     {
@@ -116,7 +115,6 @@ public class AuthController : ControllerBase
     /// Đặt lại mật khẩu bằng mã xác nhận
     /// </summary>
     /// 
-    [AllowAnonymous]
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest req)
     {
@@ -138,7 +136,6 @@ public class AuthController : ControllerBase
     /// Lấy thông tin user hiện tại từ JWT
     /// </summary>
     /// 
-    [AllowAnonymous]
     [Authorize]
     [HttpGet("me")]
     public IActionResult Me()
@@ -162,7 +159,6 @@ public class AuthController : ControllerBase
         });
     }
 
-    [AllowAnonymous]
     [Authorize]
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)

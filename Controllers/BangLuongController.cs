@@ -145,10 +145,15 @@ namespace HRApi.Controllers
         {
             try
             {
-                // 0. Lấy thông tin User hiện tại
-                var role = User.FindFirst(ClaimTypes.Role)?.Value;
-                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value; // Mã nhân viên
+                // 0. Lấy thông tin User hiện tại từ Token một cách linh hoạt
+                var role = User.FindFirst(ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value;
                 var deptId = User.FindFirst("MaPhongBan")?.Value;
+
+                // Quét các loại Claim thường chứa ID người dùng
+                var currentEmpId = User.FindFirst("MaNhanVien")?.Value
+                                ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                ?? User.FindFirst("nameid")?.Value
+                                ?? User.FindFirst("sub")?.Value;
 
                 // 1. Lấy tất cả nhân viên đang làm việc
                 var employees = await _context.NhanViens
@@ -171,7 +176,6 @@ namespace HRApi.Controllers
                     .ToDictionary(g => g.Key, g => new
                     {
                         TongCong = g.Sum(x => x.NgayCong),
-                        // Logic đếm ngày nghỉ
                         NghiCoPhep = g.Count(x => x.NgayCong == 1.0 && !string.IsNullOrEmpty(x.GhiChu) && !x.GhiChu.ToLower().Contains("check-in")),
                         NghiKhongPhep = g.Count(x => x.NgayCong == 0.0),
                         LamNuaNgay = g.Count(x => x.NgayCong == 0.5)
@@ -184,7 +188,7 @@ namespace HRApi.Controllers
 
                 var fullList = new List<BangLuong>();
 
-                // 4. MERGE DỮ LIỆU (Tạo danh sách đầy đủ cho Kế toán xem)
+                // 4. MERGE DỮ LIỆU 
                 foreach (var emp in employees)
                 {
                     var savedRecord = savedPayrolls.FirstOrDefault(p => p.MaNhanVien == emp.MaNhanVien);
@@ -205,7 +209,6 @@ namespace HRApi.Controllers
                     }
                     else
                     {
-                        // Tạo bản nháp (Preview) nếu chưa tính lương
                         fullList.Add(new BangLuong
                         {
                             MaNhanVien = emp.MaNhanVien,
@@ -225,38 +228,42 @@ namespace HRApi.Controllers
                     }
                 }
 
-                // 5. --- PHÂN QUYỀN LỌC DỮ LIỆU TRƯỚC KHI TRẢ VỀ ---
+                // 5. --- PHÂN QUYỀN LỌC DỮ LIỆU ---
                 IEnumerable<BangLuong> finalData = fullList;
 
-                if (role == "Kế toán trưởng" || role == "Giám đốc")
+                if (role == "Kế toán trưởng" || role == "Giám đốc" || role == "Nhân sự trưởng")
                 {
-                    // Xem hết
+                    // Được xem tất cả, kể cả lúc chưa chốt
                 }
                 else
                 {
-                    // Các role khác: CHỈ XEM KHI ĐÃ CHỐT
+                    // Những người khác chỉ xem bảng lương ĐÃ CHỐT
                     finalData = finalData.Where(x => x.DaChot == true);
 
                     if (role == "Trưởng phòng")
                     {
-                        // Chỉ xem phòng mình
+                        // Trưởng phòng xem phòng mình
                         finalData = finalData.Where(x => x.NhanVien.MaPhongBan == deptId);
                     }
-                    else // Nhân viên
+                    else // Nhân viên thường
                     {
-                        // Chỉ xem của chính mình
-                        finalData = finalData.Where(x => x.MaNhanVien == userId);
+                        if (!string.IsNullOrEmpty(currentEmpId))
+                        {
+                            // Lọc chính xác ID của nhân viên đó
+                            finalData = finalData.Where(x =>
+                                x.MaNhanVien.Trim().Equals(currentEmpId.Trim(), StringComparison.OrdinalIgnoreCase));
+                        }
+                        else
+                        {
+                            // Nếu token lỗi không đọc được ID, trả về rỗng để bảo mật
+                            finalData = Enumerable.Empty<BangLuong>();
+                        }
                     }
                 }
 
-                // Check trạng thái chốt chung
                 var isPublished = savedPayrolls.Any(p => p.DaChot);
+                decimal departmentTotal = role == "Trưởng phòng" ? finalData.Sum(x => x.ThucLanh) : 0;
 
-                // Tính tổng cho trưởng phòng
-                decimal departmentTotal = 0;
-                if (role == "Trưởng phòng") departmentTotal = finalData.Sum(x => x.ThucLanh);
-
-                // 6. QUAN TRỌNG: TRẢ VỀ OBJECT CÓ THUỘC TÍNH 'Data' ĐỂ KHỚP FE
                 return Ok(new
                 {
                     Data = finalData.OrderBy(x => x.MaNhanVien).ToList(),
@@ -285,7 +292,7 @@ namespace HRApi.Controllers
 
             // Nếu đã chốt, chỉ Giám đốc sửa
             if (isLocked && role != "Giám đốc")
-                return BadRequest("Bảng lương đã chốt. Chỉ Giám đốc mới được sửa.");
+                return BadRequest("Bảng lương đã chốt. Chỉ Kế toán trưởng và Giám đốc mới được sửa.");
 
             foreach (var item in payrollData)
             {

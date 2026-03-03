@@ -145,5 +145,8 @@ namespace HRApi.Models
         // ========================================================================
         // Danh sách lịch sử hợp đồng của nhân viên này
         public virtual ICollection<HopDong> HopDongs { get; set; }
+        // Lưu chuỗi Base64. Dùng nvarchar(MAX) trong SQL Server
+        [Column(TypeName = "nvarchar(MAX)")]
+        public string? ChuKy { get; set; }
     }
 }

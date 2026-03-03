@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace HRApi.Controllers
 {
@@ -157,7 +158,9 @@ namespace HRApi.Controllers
                 c.MaNhanVien,
                 NgayChamCong = c.NgayChamCong.ToString("yyyy-MM-dd"),
                 c.NgayCong,
-                c.GhiChu
+                c.GhiChu,
+                GioCheckIn = c.GioCheckIn,    
+                GioCheckOut = c.GioCheckOut
             }).ToList();
 
             // Trả về IsLocked để FE biết đường disable nút sửa
@@ -192,7 +195,16 @@ namespace HRApi.Controllers
                 .Where(c => c.MaNhanVien == maNhanVien && c.NgayChamCong >= startDate && c.NgayChamCong < endDate)
                 .ToListAsync();
 
-            var dailyRecords = data.Select(c => new { c.Id, c.MaNhanVien, NgayChamCong = c.NgayChamCong.ToString("yyyy-MM-dd"), c.NgayCong, c.GhiChu }).ToList();
+            var dailyRecords = data.Select(c => new
+            {
+                c.Id,
+                c.MaNhanVien,
+                NgayChamCong = c.NgayChamCong.ToString("yyyy-MM-dd"),
+                c.NgayCong,
+                c.GhiChu,
+                GioCheckIn = c.GioCheckIn,    
+                GioCheckOut = c.GioCheckOut   
+            }).ToList();
             return Ok(new { DailyRecords = dailyRecords });
         }
 
@@ -328,6 +340,153 @@ namespace HRApi.Controllers
 
             string actionText = dto.IsLocked ? "khóa" : "hủy khóa";
             return Ok(new { message = $"Đã {actionText} bảng công tháng {dto.Month}/{dto.Year}." });
+        }
+
+        // --- MỚI: API Chấm công bằng khuôn mặt ---
+        // --- BỔ SUNG: API ĐĂNG KÝ KHUÔN MẶT (Fix lỗi 405) ---
+        [HttpPost("register-face")]
+        public async Task<IActionResult> RegisterFace([FromBody] RegisterFaceDto dto)
+        {
+            // 1. Kiểm tra dữ liệu đầu vào
+            if (dto.FaceDescriptor == null || dto.FaceDescriptor.Length != 128)
+            {
+                return BadRequest(new { success = false, message = "Dữ liệu khuôn mặt không hợp lệ (Phải đủ 128 chiều)." });
+            }
+
+            // 2. Kiểm tra nhân viên có tồn tại không
+            var nhanVien = await _context.NhanViens.FindAsync(dto.MaNhanVien);
+            if (nhanVien == null)
+            {
+                return NotFound(new { success = false, message = "Không tìm thấy nhân viên này." });
+            }
+
+            // 3. Chuyển mảng float[] thành chuỗi JSON để lưu vào Database
+            // Vì Model FaceData của bạn lưu FaceDescriptor dưới dạng string
+            string jsonVector = JsonSerializer.Serialize(dto.FaceDescriptor);
+
+            // 4. Kiểm tra xem nhân viên này đã có dữ liệu khuôn mặt chưa
+            var existingFace = await _context.FaceDatas.FirstOrDefaultAsync(f => f.MaNhanVien == dto.MaNhanVien);
+
+            if (existingFace != null)
+            {
+                // Nếu có rồi -> Cập nhật lại khuôn mặt mới
+                existingFace.FaceDescriptor = jsonVector;
+                _context.FaceDatas.Update(existingFace);
+            }
+            else
+            {
+                // Nếu chưa có -> Tạo mới
+                var newFaceData = new FaceData
+                {
+                    MaNhanVien = dto.MaNhanVien,
+                    FaceDescriptor = jsonVector
+                };
+                _context.FaceDatas.Add(newFaceData);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Đăng ký khuôn mặt thành công!" });
+        }
+        [HttpPost("check-in-face")]
+        public async Task<IActionResult> CheckInWithFace([FromBody] CheckInFaceDto dto)
+        {
+            // 1. Lấy tất cả dữ liệu khuôn mặt trong DB ra để so sánh
+            // Lưu ý: Với đồ án hoặc công ty nhỏ < 1000 NV thì cách này OK. 
+            // Nếu dữ liệu lớn cần dùng Vector Database chuyên dụng.
+            var allFaces = await _context.FaceDatas.ToListAsync();
+
+            string foundEmployeeId = null;
+            double bestMatchDistance = double.MaxValue; // Khoảng cách nhỏ nhất tìm thấy
+
+            // 2. Thuật toán so sánh (Duyệt qua từng người trong DB)
+            foreach (var face in allFaces)
+            {
+                // Giải nén chuỗi JSON trong DB ra thành mảng số
+                var storedVector = JsonSerializer.Deserialize<float[]>(face.FaceDescriptor);
+
+                // Tính khoảng cách giữa khuôn mặt gửi lên và khuôn mặt trong DB
+                var distance = CalculateEuclideanDistance(dto.FaceDescriptor, storedVector);
+
+                // Ngưỡng (Threshold) cho face-api.js thường là 0.45 - 0.5
+                // Nếu khoảng cách nhỏ hơn 0.5 nghĩa là khớp
+                if (distance < 0.5 && distance < bestMatchDistance)
+                {
+                    bestMatchDistance = distance;
+                    foundEmployeeId = face.MaNhanVien;
+                }
+            }
+
+            if (string.IsNullOrEmpty(foundEmployeeId))
+            {
+                return BadRequest(new { success = false, message = "Không nhận diện được khuôn mặt nhân viên." });
+            }
+
+            // 3. Nếu tìm thấy người -> Thực hiện logic chấm công (tương tự như QR Code)
+            var today = DateTime.Today;
+            var existing = await _context.ChamCongs.FirstOrDefaultAsync(c => c.MaNhanVien == foundEmployeeId && c.NgayChamCong.Date == today);
+
+            if (existing != null)
+            {
+                // LOGIC CHECK-OUT (Ra về)
+                if (existing.GioCheckOut != null)
+                    return BadRequest(new { success = false, message = "Bạn đã check-out hôm nay rồi." });
+
+                existing.GioCheckOut = DateTime.Now;
+                existing.GhiChu = (existing.GhiChu ?? "") + $" | Face Check-out: {existing.GioCheckOut:HH:mm}";
+
+                // Tính toán công dựa trên giờ làm
+                double totalHours = (existing.GioCheckOut.Value - (existing.GioCheckIn ?? existing.NgayChamCong)).TotalHours;
+                if (totalHours > 5) totalHours -= 1.0; // Trừ giờ nghỉ trưa
+
+                if (totalHours >= 7.5) existing.NgayCong = 1.0;
+                else if (totalHours >= 3.5) existing.NgayCong = 0.5;
+                else existing.NgayCong = 0.0;
+
+                _context.ChamCongs.Update(existing);
+                await _context.SaveChangesAsync();
+
+                var nv = await _context.NhanViens.FindAsync(foundEmployeeId);
+                return Ok(new { success = true, message = $"Check-out thành công cho {nv?.HoTen}.", ngayCong = existing.NgayCong });
+            }
+            else
+            {
+                // LOGIC CHECK-IN (Vào làm)
+                var newChamCong = new ChamCong
+                {
+                    MaNhanVien = foundEmployeeId,
+                    NgayChamCong = DateTime.Now, // Ngày chấm công
+                    GioCheckIn = DateTime.Now,   // Giờ vào thực tế
+                    NgayCong = 0.0,
+                    GhiChu = "Face Check-in",
+                    LoaiNgayCong = "Làm việc"
+                };
+
+                // Logic đi muộn (Ví dụ sau 8:15 là muộn)
+                if (DateTime.Now.Hour > 8 || (DateTime.Now.Hour == 8 && DateTime.Now.Minute > 15))
+                {
+                    newChamCong.DiMuon = true;
+                    newChamCong.GhiChu += " (Đi muộn)";
+                }
+
+                _context.ChamCongs.Add(newChamCong);
+                await _context.SaveChangesAsync();
+
+                var nv = await _context.NhanViens.FindAsync(foundEmployeeId);
+                return Ok(new { success = true, message = $"Check-in thành công cho {nv?.HoTen}!", time = newChamCong.GioCheckIn });
+            }
+        }
+
+        // Helper: Hàm tính khoảng cách Euclid giữa 2 vector khuôn mặt
+        private double CalculateEuclideanDistance(float[] a, float[] b)
+        {
+            if (a.Length != b.Length) return double.MaxValue;
+            double sum = 0;
+            for (int i = 0; i < a.Length; i++)
+            {
+                sum += Math.Pow(a[i] - b[i], 2);
+            }
+            return Math.Sqrt(sum);
         }
     }
 }

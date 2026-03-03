@@ -22,5 +22,6 @@ namespace HRApi.Data
         public DbSet<DangKyOT> DangKyOTs { get; set; }
         public DbSet<DangKyCongTac> DangKyCongTacs { get; set; }
         public DbSet<KhoaCong> KhoaCongs { get; set; }
+        public DbSet<FaceData> FaceDatas { get; set; }
     }
 }

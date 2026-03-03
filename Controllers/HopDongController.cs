@@ -80,6 +80,11 @@ namespace HRApi.Controllers
                     CCCD = h.NhanVien != null ? h.NhanVien.CCCD : "",
                     DiaChi = h.NhanVien != null ? h.NhanVien.DiaChiThuongTru : "",
                     SoDienThoai = h.NhanVien != null ? h.NhanVien.sdt_NhanVien : "",
+
+                    // --- QUAN TRỌNG: Lấy thêm trường chữ ký ---
+                    ChuKy = h.NhanVien != null ? h.NhanVien.ChuKy : null,
+                    // ------------------------------------------
+
                     h.LoaiHopDong,
                     h.NgayBatDau,
                     h.NgayKetThuc,
@@ -94,7 +99,6 @@ namespace HRApi.Controllers
         }
 
         // POST: api/HopDong
-        // --- CHỈ GIÁM ĐỐC & NHÂN SỰ TRƯỞNG MỚI ĐƯỢC TẠO ---
         [HttpPost]
         [Authorize(Roles = "Giám đốc,Nhân sự trưởng")]
         public async Task<ActionResult<HopDong>> CreateHopDong([FromForm] HopDongInputDto dto)
@@ -134,7 +138,6 @@ namespace HRApi.Controllers
 
             _context.HopDongs.Add(hopDong);
 
-            // Sync thông tin sang Nhân viên
             nhanVien.LuongCoBan = dto.LuongCoBan;
             nhanVien.SoHopDong = dto.SoHopDong;
             nhanVien.LoaiNhanVien = dto.LoaiHopDong;
@@ -144,7 +147,6 @@ namespace HRApi.Controllers
         }
 
         // PUT: api/HopDong
-        // --- CHỈ GIÁM ĐỐC & NHÂN SỰ TRƯỞNG MỚI ĐƯỢC SỬA ---
         [HttpPut]
         [Authorize(Roles = "Giám đốc,Nhân sự trưởng")]
         public async Task<IActionResult> UpdateHopDong([FromQuery] string id, [FromForm] HopDongInputDto dto)
@@ -171,7 +173,6 @@ namespace HRApi.Controllers
             hopDong.TrangThai = dto.TrangThai;
             hopDong.GhiChu = dto.GhiChu;
 
-            // Chỉ cập nhật lương cho nhân viên nếu HĐ này ĐANG HIỆU LỰC
             if (hopDong.TrangThai == "HieuLuc")
             {
                 var nhanVien = await _context.NhanViens.FindAsync(hopDong.MaNhanVien);
@@ -186,7 +187,7 @@ namespace HRApi.Controllers
             return Ok(new { message = "Cập nhật thành công" });
         }
 
-        // DELETE: api/HopDong (Tùy chọn: Có thể bỏ nếu không dùng, hoặc cũng khóa quyền)
+        // DELETE: api/HopDong
         [HttpDelete]
         [Authorize(Roles = "Giám đốc,Nhân sự trưởng")]
         public async Task<IActionResult> DeleteHopDong([FromQuery] string id)
@@ -196,6 +197,29 @@ namespace HRApi.Controllers
             _context.HopDongs.Remove(hd);
             await _context.SaveChangesAsync();
             return Ok(new { message = "Đã xóa hợp đồng" });
+        }
+
+        // GET: api/NhanVien/GiamDoc
+        [HttpGet("GiamDoc")]
+        public async Task<IActionResult> GetGiamDoc()
+        {
+            var giamDoc = await _context.NhanViens
+                .Include(nv => nv.ChucVuNhanVien)
+                .Where(nv => nv.ChucVuNhanVien.TenChucVu.Contains("Giám đốc") && nv.TrangThai == true)
+                .Select(nv => new
+                {
+                    nv.HoTen,
+                    TenChucVu = nv.ChucVuNhanVien != null ? nv.ChucVuNhanVien.TenChucVu : "Giám đốc",
+                    nv.ChuKy
+                })
+                .FirstOrDefaultAsync();
+
+            if (giamDoc == null)
+            {
+                return Ok(null);
+            }
+
+            return Ok(giamDoc);
         }
     }
 }

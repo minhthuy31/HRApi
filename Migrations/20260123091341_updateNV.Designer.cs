@@ -4,6 +4,7 @@ using HRApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRApi.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260123091341_updateNV")]
+    partial class updateNV
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -342,29 +345,6 @@ namespace HRApi.Migrations
                     b.HasIndex("MaNhanVien");
 
                     b.ToTable("DonNghiPheps");
-                });
-
-            modelBuilder.Entity("HRApi.Models.FaceData", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("FaceDescriptor")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("MaNhanVien")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MaNhanVien");
-
-                    b.ToTable("FaceDatas");
                 });
 
             modelBuilder.Entity("HRApi.Models.HopDong", b =>
@@ -778,17 +758,6 @@ namespace HRApi.Migrations
                 });
 
             modelBuilder.Entity("HRApi.Models.DonNghiPhep", b =>
-                {
-                    b.HasOne("HRApi.Models.NhanVien", "NhanVien")
-                        .WithMany()
-                        .HasForeignKey("MaNhanVien")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("NhanVien");
-                });
-
-            modelBuilder.Entity("HRApi.Models.FaceData", b =>
                 {
                     b.HasOne("HRApi.Models.NhanVien", "NhanVien")
                         .WithMany()
