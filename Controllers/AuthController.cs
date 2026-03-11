@@ -26,6 +26,11 @@ public class AuthController : ControllerBase
         _email = email;
         _tokenSvc = tokenSvc;
     }
+    public class TokenApiModel
+    {
+        public string AccessToken { get; set; }
+        public string RefreshToken { get; set; }
+    }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest req)
@@ -59,37 +64,85 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(AuthResponse), 200)]
-    public ActionResult<AuthResponse> Login([FromBody] LoginRequest req)
+    // SỬA Ở ĐÂY: Đổi thành async Task để gọi lệnh await _db.SaveChangesAsync()
+    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest req)
     {
-        var nhanVien = _db.NhanViens.Include(u => u.UserRole).FirstOrDefault(u => u.Email == req.Email);
-
-        Console.WriteLine($"Email nhập: {req.Email}");
-        Console.WriteLine($"Có nhân viên? {nhanVien != null}");
-
-        if (nhanVien != null)
-        {
-            Console.WriteLine($"Mật khẩu DB: {nhanVien.MatKhau}");
-            Console.WriteLine($"Verify: {BCrypt.Verify(req.Password, nhanVien.MatKhau)}");
-            Console.WriteLine($"TrangThai: {nhanVien.TrangThai}");
-            Console.WriteLine($"Role: {nhanVien.UserRole?.NameRole ?? "Không có role"}");
-        }
+        var nhanVien = await _db.NhanViens.Include(u => u.UserRole).FirstOrDefaultAsync(u => u.Email == req.Email);
 
         if (nhanVien == null || string.IsNullOrEmpty(nhanVien.MatKhau) || !BCrypt.Verify(req.Password, nhanVien.MatKhau))
             return Unauthorized(new { message = "Sai email hoặc mật khẩu" });
 
         if (!nhanVien.TrangThai)
             return Unauthorized(new { message = "Tài khoản này đã bị vô hiệu hóa." });
+
         var roleName = nhanVien.UserRole?.NameRole;
         var maPhongBan = nhanVien.MaPhongBan;
+
+        // --- LOGIC TẠO ACCESS TOKEN VÀ REFRESH TOKEN ---
         var jwt = _tokenSvc.CreateToken(nhanVien.MaNhanVien, nhanVien.Email, roleName, maPhongBan);
+        var refreshToken = _tokenSvc.GenerateRefreshToken();
+
+        // Lưu Refresh Token vào Database (Hạn 7 ngày)
+        nhanVien.RefreshToken = refreshToken;
+        nhanVien.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+        await _db.SaveChangesAsync();
+
         return Ok(new AuthResponse
         {
             Token = jwt,
+            RefreshToken = refreshToken, // Trả thêm dòng này về
             Email = nhanVien.Email,
             MaNhanVien = nhanVien.MaNhanVien,
             HoTen = nhanVien.HoTen,
             Role = roleName,
             MaPhongBan = maPhongBan
+        });
+    }
+
+    /// <summary>
+    /// API Làm mới Token khi Access Token bị hết hạn
+    /// </summary>
+    [HttpPost("refresh-token")]
+    [AllowAnonymous] // Bắt buộc AllowAnonymous vì lúc này AccessToken đã hết hạn
+    public async Task<IActionResult> RefreshToken([FromBody] TokenApiModel tokenModel)
+    {
+        if (tokenModel is null)
+            return BadRequest("Yêu cầu không hợp lệ.");
+
+        string accessToken = tokenModel.AccessToken;
+        string refreshToken = tokenModel.RefreshToken;
+
+        // Bóc tách token cũ để lấy Email
+        var principal = _tokenSvc.GetPrincipalFromExpiredToken(accessToken);
+        var email = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+        // Tìm nhân viên trong DB
+        var nhanVien = await _db.NhanViens.Include(u => u.UserRole).FirstOrDefaultAsync(u => u.Email == email);
+
+        // Kiểm tra Refresh Token có khớp và còn hạn không
+        if (nhanVien == null || nhanVien.RefreshToken != refreshToken || nhanVien.RefreshTokenExpiryTime <= DateTime.UtcNow)
+        {
+            return BadRequest(new { message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
+        }
+
+        // Tạo cặp token mới
+        var newAccessToken = _tokenSvc.CreateToken(nhanVien.MaNhanVien, nhanVien.Email, nhanVien.UserRole?.NameRole, nhanVien.MaPhongBan);
+        var newRefreshToken = _tokenSvc.GenerateRefreshToken();
+
+        // Cập nhật Database
+        nhanVien.RefreshToken = newRefreshToken;
+        await _db.SaveChangesAsync();
+
+        // Trả về cho Frontend
+        return Ok(new AuthResponse
+        {
+            Token = newAccessToken,
+            RefreshToken = newRefreshToken,
+            Email = nhanVien.Email,
+            MaNhanVien = nhanVien.MaNhanVien,
+            HoTen = nhanVien.HoTen,
+            Role = nhanVien.UserRole?.NameRole,
+            MaPhongBan = nhanVien.MaPhongBan
         });
     }
 

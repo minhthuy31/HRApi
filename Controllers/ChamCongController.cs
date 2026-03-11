@@ -85,86 +85,111 @@ namespace HRApi.Controllers
             }
         }
 
-        // --- 2. Lấy dữ liệu chấm công tháng (LOGIC PHÂN QUYỀN MỚI) ---
+        // --- 2. Lấy dữ liệu chấm công tháng (LOGIC PHÂN QUYỀN MỚI ĐÃ FIX LỖI 500) ---
         [HttpGet]
         public async Task<IActionResult> GetChamCongThang([FromQuery] int year, [FromQuery] int month)
         {
-            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
-            var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
-
-            if (year < 1 || month < 1 || month > 12) return BadRequest("Thời gian sai.");
-
-            // Check trạng thái khóa
-            var lockRecord = await _context.KhoaCongs.FirstOrDefaultAsync(k => k.Nam == year && k.Thang == month);
-            bool isLocked = lockRecord != null && lockRecord.IsLocked;
-
-            var startDate = new DateTime(year, month, 1);
-            var endDate = startDate.AddMonths(1);
-
-            // Include NhanVien để check phòng ban
-            var query = _context.ChamCongs
-                .Include(c => c.NhanVien)
-                .Where(c => c.NgayChamCong >= startDate && c.NgayChamCong < endDate)
-                .AsQueryable();
-
-            // --- PHÂN QUYỀN ---
-            if (currentUserRole == "Trưởng phòng")
+            try
             {
-                if (!string.IsNullOrEmpty(currentUserMaPhongBan))
+                var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+                var currentUserId = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+                var currentUserMaPhongBan = User.Claims.FirstOrDefault(c => c.Type == "MaPhongBan")?.Value;
+
+                if (year < 1 || month < 1 || month > 12) return BadRequest("Thời gian sai.");
+
+                // Check trạng thái khóa
+                var lockRecord = await _context.KhoaCongs.FirstOrDefaultAsync(k => k.Nam == year && k.Thang == month);
+                bool isLocked = lockRecord != null && lockRecord.IsLocked;
+
+                var startDate = new DateTime(year, month, 1);
+                var endDate = startDate.AddMonths(1);
+
+                // Include NhanVien để check phòng ban
+                var query = _context.ChamCongs
+                    .Include(c => c.NhanVien)
+                    .Where(c => c.NgayChamCong >= startDate && c.NgayChamCong < endDate)
+                    .AsQueryable();
+
+                // --- PHÂN QUYỀN ---
+                if (currentUserRole == "Trưởng phòng")
                 {
-                    // Trưởng phòng: Chỉ lấy nhân viên cùng phòng
-                    query = query.Where(c => c.NhanVien.MaPhongBan == currentUserMaPhongBan);
+                    if (string.IsNullOrEmpty(currentUserMaPhongBan) && !string.IsNullOrEmpty(currentUserId))
+                    {
+                        var nv = await _context.NhanViens.AsNoTracking().FirstOrDefaultAsync(x => x.MaNhanVien == currentUserId);
+                        currentUserMaPhongBan = nv?.MaPhongBan;
+                    }
+
+                    if (!string.IsNullOrEmpty(currentUserMaPhongBan))
+                    {
+                        var trimmedPB = currentUserMaPhongBan.Trim();
+                        // FIX LỖI 500: Bỏ .Trim() bên trong LINQ để tránh lỗi Entity Framework
+                        query = query.Where(c => c.NhanVien != null && c.NhanVien.MaPhongBan == trimmedPB);
+                    }
+                    else
+                    {
+                        return Ok(new { DailyRecords = new List<object>(), Summaries = new Dictionary<string, object>(), IsLocked = isLocked });
+                    }
+                }
+                else if (IsAdminOrHR() || currentUserRole == "Kế toán trưởng")
+                {
+                    // Xem hết
                 }
                 else
                 {
-                    return Ok(new { DailyRecords = new List<object>(), Summaries = new Dictionary<string, object>(), IsLocked = isLocked });
+                    return StatusCode(403, "Bạn không có quyền xem bảng công tổng hợp.");
                 }
+
+                var data = await query.ToListAsync();
+
+                // FIX LỖI 500: Lọc bỏ các bản ghi có MaNhanVien bị NULL (tránh crash khi ToDictionary)
+                var validData = data.Where(c => !string.IsNullOrEmpty(c.MaNhanVien)).ToList();
+
+                // --- TÍNH SUMMARY ---
+                var employeeIds = validData.Select(c => c.MaNhanVien).Distinct().ToList();
+                var startYear = new DateTime(year, 1, 1);
+                var endYear = startYear.AddYears(1);
+
+                var paidLeaves = new Dictionary<string, int>();
+
+                // Tránh lỗi khi danh sách nhân viên rỗng
+                if (employeeIds.Any())
+                {
+                    paidLeaves = await _context.ChamCongs
+                        .Where(c => employeeIds.Contains(c.MaNhanVien) &&
+                               c.NgayChamCong >= startYear && c.NgayChamCong < endYear &&
+                               c.NgayCong == 1.0 && !string.IsNullOrEmpty(c.GhiChu))
+                        .GroupBy(c => c.MaNhanVien)
+                        .ToDictionaryAsync(g => g.Key, g => g.Count());
+                }
+
+                var summaries = validData.GroupBy(c => c.MaNhanVien).ToDictionary(g => g.Key, g => new
+                {
+                    MaNhanVien = g.Key,
+                    TongCong = g.Sum(c => c.NgayCong),
+                    DiLamDu = g.Count(c => c.NgayCong == 1.0 && string.IsNullOrEmpty(c.GhiChu)),
+                    NghiCoPhep = g.Count(c => c.NgayCong == 1.0 && !string.IsNullOrEmpty(c.GhiChu)),
+                    RemainingLeaveDays = 12 - (paidLeaves.ContainsKey(g.Key) ? paidLeaves[g.Key] : 0)
+                });
+
+                var dailyRecords = validData.Select(c => new
+                {
+                    c.Id,
+                    c.MaNhanVien,
+                    NgayChamCong = c.NgayChamCong.ToString("yyyy-MM-dd"),
+                    c.NgayCong,
+                    c.GhiChu,
+                    GioCheckIn = c.GioCheckIn,
+                    GioCheckOut = c.GioCheckOut
+                }).ToList();
+
+                return Ok(new { DailyRecords = dailyRecords, Summaries = summaries, IsLocked = isLocked });
             }
-            else if (IsAdminOrHR() || currentUserRole == "Kế toán trưởng")
+            catch (Exception ex)
             {
-                // HR, Giám đốc, Kế toán: Xem hết
+                // In lỗi ra terminal của Backend để dễ sửa nếu còn bị
+                Console.WriteLine($"\n[ERROR GetChamCongThang]: {ex.Message}\n{ex.StackTrace}\n");
+                return StatusCode(500, $"Lỗi xử lý server: {ex.Message}");
             }
-            else
-            {
-                return Forbid("Bạn không có quyền xem bảng công tổng hợp.");
-            }
-
-            var data = await query.ToListAsync();
-
-            // --- TÍNH SUMMARY ---
-            var employeeIds = data.Select(c => c.MaNhanVien).Distinct().ToList();
-            var startYear = new DateTime(year, 1, 1);
-            var endYear = startYear.AddYears(1);
-
-            var paidLeaves = await _context.ChamCongs
-                .Where(c => employeeIds.Contains(c.MaNhanVien) &&
-                       c.NgayChamCong >= startYear && c.NgayChamCong < endYear &&
-                       c.NgayCong == 1.0 && !string.IsNullOrEmpty(c.GhiChu))
-                .GroupBy(c => c.MaNhanVien)
-                .ToDictionaryAsync(g => g.Key, g => g.Count());
-
-            var summaries = data.GroupBy(c => c.MaNhanVien).ToDictionary(g => g.Key, g => new
-            {
-                MaNhanVien = g.Key,
-                TongCong = g.Sum(c => c.NgayCong),
-                DiLamDu = g.Count(c => c.NgayCong == 1.0 && string.IsNullOrEmpty(c.GhiChu)),
-                NghiCoPhep = g.Count(c => c.NgayCong == 1.0 && !string.IsNullOrEmpty(c.GhiChu)),
-                RemainingLeaveDays = 12 - (paidLeaves.ContainsKey(g.Key) ? paidLeaves[g.Key] : 0)
-            });
-
-            var dailyRecords = data.Select(c => new
-            {
-                c.Id,
-                c.MaNhanVien,
-                NgayChamCong = c.NgayChamCong.ToString("yyyy-MM-dd"),
-                c.NgayCong,
-                c.GhiChu,
-                GioCheckIn = c.GioCheckIn,    
-                GioCheckOut = c.GioCheckOut
-            }).ToList();
-
-            // Trả về IsLocked để FE biết đường disable nút sửa
-            return Ok(new { DailyRecords = dailyRecords, Summaries = summaries, IsLocked = isLocked });
         }
 
         // --- 3. Lấy dữ liệu cá nhân ---
@@ -202,8 +227,8 @@ namespace HRApi.Controllers
                 NgayChamCong = c.NgayChamCong.ToString("yyyy-MM-dd"),
                 c.NgayCong,
                 c.GhiChu,
-                GioCheckIn = c.GioCheckIn,    
-                GioCheckOut = c.GioCheckOut   
+                GioCheckIn = c.GioCheckIn,
+                GioCheckOut = c.GioCheckOut
             }).ToList();
             return Ok(new { DailyRecords = dailyRecords });
         }

@@ -84,6 +84,7 @@ namespace HRApi.Models
         // --- BỔ SUNG: THÔNG TIN LƯƠNG & HỢP ĐỒNG ---
         [Column(TypeName = "decimal(18, 2)")]
         public decimal LuongCoBan { get; set; } // Lương cơ bản hiện tại
+        [Column(TypeName = "decimal(18, 2)")]
         public decimal LuongTroCap { get; set; } // Tổng lương trợ cấp hiện tại
         public string? SoHopDong { get; set; }  // Số hợp đồng hiện tại
 
@@ -148,5 +149,7 @@ namespace HRApi.Models
         // Lưu chuỗi Base64. Dùng nvarchar(MAX) trong SQL Server
         [Column(TypeName = "nvarchar(MAX)")]
         public string? ChuKy { get; set; }
+        public string? RefreshToken { get; set; }
+        public DateTime? RefreshTokenExpiryTime { get; set; }
     }
 }

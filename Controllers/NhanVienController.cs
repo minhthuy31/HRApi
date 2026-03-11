@@ -33,13 +33,39 @@ namespace HRApi.Controllers
 
             var query = _context.NhanViens.AsQueryable();
 
-            // --- LOGIC PHÂN QUYỀN MỚI ---
+            // --- LOGIC PHÂN QUYỀN HIỂN THỊ ---
             if (currentUserRole == "Trưởng phòng")
             {
+                var currentUserId = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+                // Nếu Token không có mã phòng ban, lấy từ DB
+                if (string.IsNullOrEmpty(currentUserMaPhongBan) && !string.IsNullOrEmpty(currentUserId))
+                {
+                    var nv = await _context.NhanViens.AsNoTracking().FirstOrDefaultAsync(x => x.MaNhanVien == currentUserId);
+                    currentUserMaPhongBan = nv?.MaPhongBan;
+                }
+
+                // SỬA Ở ĐÂY: Dùng Trim() cho cả 2 vế để tránh lỗi khoảng trắng
                 if (!string.IsNullOrEmpty(currentUserMaPhongBan))
-                    query = query.Where(nv => nv.MaPhongBan == currentUserMaPhongBan);
+                {
+                    var trimmedMaPhongBan = currentUserMaPhongBan.Trim();
+                    query = query.Where(nv => nv.MaPhongBan != null && nv.MaPhongBan.Trim() == trimmedMaPhongBan);
+                }
                 else
+                {
                     return Ok(new List<NhanVienDetailDto>());
+                }
+            }
+            else if (currentUserRole == "Nhân sự trưởng" || currentUserRole == "Kế toán trưởng" || currentUserRole == "Giám đốc")
+            {
+                if (!string.IsNullOrEmpty(maPhongBan))
+                {
+                    query = query.Where(x => x.MaPhongBan == maPhongBan);
+                }
+            }
+            else
+            {
+                return Forbid("Bạn không có quyền xem danh sách nhân viên.");
             }
 
             if (!string.IsNullOrEmpty(maPhongBan)) query = query.Where(x => x.MaPhongBan == maPhongBan);
@@ -591,9 +617,16 @@ namespace HRApi.Controllers
         }
 
         // API: Lưu chữ ký Base64
+        [Authorize]
         [HttpPost("save-signature-base64")]
         public async Task<IActionResult> SaveSignatureBase64([FromBody] SignatureDto dto)
         {
+            var currentUserRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            if (currentUserRole != "Nhân sự trưởng" && currentUserRole != "Giám đốc")
+            {
+                return StatusCode(403, "Chỉ Nhân sự trưởng và Giám đốc mới có quyền cập nhật chữ ký.");
+            }
+
             var nv = await _context.NhanViens.FindAsync(dto.MaNhanVien);
             if (nv == null) return NotFound(new { message = "Nhân viên không tồn tại" });
 

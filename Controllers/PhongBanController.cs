@@ -47,7 +47,6 @@ namespace HRApi.Controllers
             }
             else if (currentUserRole == "Kế toán trưởng" ||
                      currentUserRole == "Giám đốc" ||
-                     currentUserRole == "Tổng giám đốc" ||
                      currentUserRole == "Nhân sự trưởng")
             {
                 // Các role này được xem hết (Full list)
@@ -93,7 +92,6 @@ namespace HRApi.Controllers
             }
             else if (currentUserRole != "Kế toán trưởng" &&
                      currentUserRole != "Giám đốc" &&
-                     currentUserRole != "Tổng giám đốc" &&
                      currentUserRole != "Nhân sự trưởng")
             {
                 // Các role nhân viên thường bị chặn
